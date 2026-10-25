@@ -284,3 +284,101 @@ Charter: LOOP_CHARTER.md — max 60 rounds. This log starts at Round 1.
   - Whether fat-deck soft-cap needs hard remove prompt / rest auto-hint
   - Optional juice only if Top3 stays green
 - Decision: pause for external review — **not Done** (min rounds goal 30+ continues after Review4)
+
+## Round 25
+- Target gap: Fight1 true in-combat MP spend (one guaranteed path) without breaking window / deck bloat
+- What changed:
+  - Combat-only card `膜裂き` (AP0/MP1・貫通9) injected into slime fight pile; never shop/reward/starter; never leaks to `player.deck`
+  - Fight1 log teaches store→spend on the tear
+- Evaluation: **better**
+  - Evidence: smoke r25-fight1-mp-spend inject+spend through block; permanent deck clean
+- Decision: continue
+
+## Round 25.x / Visual（紬 follow-up・policy A・カードイラストなし）
+- Target gap: Intent/target/player-frame signal split
+- What changed:
+  1. Intent pills: 🛡 `kind-block` blue-gray; ⬆ `kind-buff` quiet purple; ⚔ stays danger red (+ heavy)
+  2. Target ring = `--target-warm` soft warm; map selectable-only keeps accent cyan
+  3. `.actor.player` thin `--window-frame` green so player isn’t flatter than ranked enemies
+- Evaluation: **better** (readability hierarchy; smoke r25.x-tsumugi-visual)
+- Decision: continue → R26
+
+## Round 26
+- Target gap: Meditation vs elite softness
+- What changed:
+  - 窓瞑想 HP cost 8→10
+  - Elite HP bumps (72 / variants +4); patterns slightly sharper
+  - If meditate pending on elite: force drain / thicken+6 / HP+6 depending on mod
+- Evaluation: **better**
+  - Evidence: smoke r26-meditate-elite; HTML HP-10; elite hp≥70
+- Decision: continue
+
+## Round 27
+- Target gap: Boss/finale clarity + juice (no card art)
+- What changed:
+  - Boss HP 102; phase labels 【I殻】【II破】【III】 on intents + open log + mid-fight callouts for 大破/力
+  - Win copy richer; CSS bossPulse on rank-boss
+- Evaluation: **better**
+  - Evidence: smoke r27-boss-phases
+- Decision: continue
+
+## Round 28
+- Target gap: Harder anti-bloat / reward pool hygiene
+- What changed:
+  - REWARD_POOL drops `iron`; shop deprioritizes heavy (iron last)
+  - Deck ≥16 → reward offers **1** + stronger skip tip (14–15 still 2)
+- Evaluation: **better**
+  - Evidence: smoke r28-veryfat-hygiene offers=1
+- Decision: continue
+
+## Round 29
+- Target gap: Playability — first-run teach remove/window in one tip
+- What changed:
+  - Map one-shot `.teach-tip` (read next + delete when fat)
+  - Help panel: 膜裂き / 往復 / 初回の要点 / intent colors / meditate cost
+- Evaluation: **better**
+  - Evidence: smoke r29-teach-tip flag; help copy
+- Decision: continue
+
+## Round 30
+- Target gap: Full smoke + regression suite expansion
+- What changed:
+  - Smoke covers R25–R29 + R25.x visual + R31 hooks; prior suite still green
+- Evaluation: **better** (stability) — smoke ALL GREEN
+- Decision: continue
+
+## Round 31
+- Target gap: Amplify AP↔MP verb + polish weak event
+- What changed:
+  - Combat once: 「気の往復」AP→MP or MP→AP (locks for that fight)
+  - 盗賊の残り火「火で暖まる」→ HP+10 + 蓄気 (was heal-only)
+- Evaluation: **better**
+  - Evidence: smoke r31-convert-event
+- Decision: continue → stabilize
+
+## Round 32
+- Target gap: Stabilize docs; write near-Done checklist for Review4/5 — **do NOT mark Done**
+- What changed:
+  - CORE/README/LOOP_LOG/charter synced (repo + `/workspace/sts-like-spec`)
+  - Near-Done checklist below (for external reviewers)
+- Evaluation: **better** (docs/stability)
+- Still open for 33+:
+  - External **Review4** (哀ちゃん) Top3 on live Pages — prefer over implementer judgment
+  - Whether membrane_tear teaches without feeling like a tutorial tax
+  - Convert button discoverability vs clutter
+  - Post-meditate elite feel after HP+10 trade
+  - Optional second-act / relics only if Review4 says core is green
+- Decision: pause for Review4 — **not Done** (crossed 30+ round minimum; continue after review)
+
+### Near-Done checklist（Review4/5 用・実装者は Done にしない）
+- [ ] 核「手札3＋次1でAP/MPを割く」が戦闘ごとに発火（膜裂き／往復／読めた報酬含む）
+- [ ] Fight1: 純粋斬撃ではほぼ勝てず、窓読み＋何らかのMP消費が自然に出る
+- [ ] MP消費が店RNG頼みでない（報酬保証／気の欠片／初戦膜裂き）
+- [ ] 山肥大で窓が死なない（14枚2択・16枚1択・削除が安い・初回ヒント）
+- [ ] 「読めた」がボードに見える（次攻撃+/余韻MP）
+- [ ] 瞑想→エリートが甘すぎない（HPコストと余波硬化）
+- [ ] ボス相（殻→大破→力）が意図ラベルで読める
+- [ ] 紬 visual: 意図色分け・ターゲット暖色・マップ選択はアクセント・プレイヤー窓枠
+- [ ] カードイラストなし維持
+- [ ] smoke ALL GREEN / Pages 更新済み
+- [ ] レビュー側「もう一回やりたい」「大きな穴なし」が連続2ラウンドで重大ギャップなし → そのとき初めて Done 候補

@@ -250,15 +250,45 @@
     logCombat("ヒント: 次を見て、今切るか蓄気（MP）するか。大攻撃の前は防御を窓から引き込め。");
     if (enemyId === "slime") {
       logCombat("初戦: 膜のターンは斬撃が弱い。蓄気／気吸いでMPを貯め、大殴りの前は次を読め。", true);
+      // R25: guaranteed in-combat true MP spend path (combat-only card; never enters player.deck)
+      const tear = makeCard("membrane_tear", "tear" + Date.now());
+      state.combat.pile.push(tear);
+      shuffle(state.combat.pile);
+      // If hand is full of fillers, ensure tear can surface as next if next is empty — else pile only
+      if (!state.combat.next) state.combat.next = state.combat.pile.pop();
+      logCombat("膜に裂け目 — 山に『膜裂き』(AP0/MP1・貫通9)が混ざった。貯めて使え。", true);
+    }
+    if (enemyId === "boss") {
+      logCombat("三窓の主：相【I殻→攻撃】→【II膜→大破24】→【III力→連撃】。殻には貫通／決壊。", true);
+      state.combat.bossPhaseAnnounced = 0;
     }
     if (enemies.length > 1) logCombat("複数体：カードは選択中の敵へ。クリックでターゲット変更。");
-    if (state.flags && state.flags.meditate) {
+    // R31: once-per-combat AP↔MP verb amplify
+    state.combat.convertUsed = false;
+    // R26: meditation softens elite — harden encounter if meditate pending
+    const medPending = state.flags && state.flags.meditate;
+    if (medPending && (state.combat.encounterRank === "elite" || enemyId === "elite" || (typeof ELITE_POOL !== "undefined" && ELITE_POOL.indexOf(enemyId) >= 0))) {
+      if (!state.combat.eliteMod) {
+        state.combat.eliteMod = "drain";
+        applyEliteMod("drain");
+        logCombat("瞑想の余波に反応：精鋭が気奪いを帯びた", true);
+      } else if (state.combat.eliteMod === "thick") {
+        state.combat.enemies.forEach((e) => { if (e.hp > 0) e.block += 6; });
+        logCombat("瞑想の余波に反応：厚殻がさらに硬くなった（+6）", true);
+      } else {
+        state.combat.enemies.forEach((e) => { if (e.hp > 0) { e.hp += 6; e.hpMax += 6; } });
+        logCombat("瞑想の余波に反応：精鋭の体力 +6", true);
+      }
+    }
+    if (medPending) {
       if (state.combat.player.mp > 0) logCombat("窓瞑想の余波：初期 MP " + state.combat.player.mp, true);
       if (state.flags.meditate.redrawNext) {
         api.redrawNext({ noRead: true });
         logCombat("窓瞑想：戦闘開始の次を引き直した", true);
       }
       state.flags.meditate = null; // consume
+      renderCombat();
+    } else {
       renderCombat();
     }
   }
@@ -555,6 +585,24 @@
     }
   }
 
+
+  function convertApMp(dir) {
+    const c = state.combat;
+    if (!c || c.over || c.convertUsed) return;
+    const p = c.player;
+    if (dir === "ap2mp") {
+      if (p.ap < 1) { logCombat("APが足りない"); return; }
+      p.ap -= 1; p.mp += 1;
+      logCombat("気の往復：AP→MP（+1）", true);
+    } else if (dir === "mp2ap") {
+      if (p.mp < 1) { logCombat("MPが足りない"); return; }
+      p.mp -= 1; p.ap += 1;
+      logCombat("気の往復：MP→AP（+1）", true);
+    } else return;
+    c.convertUsed = true;
+    renderCombat();
+  }
+
   function endTurn() {
     const c = state.combat;
     if (c.over) return;
@@ -579,6 +627,15 @@
       e.turn += 1;
     });
     setAllIntents();
+    // R27: boss phase callouts when entering big-break / power turns
+    if (c.isBoss) {
+      const be = c.enemies[0];
+      if (be && be.intent) {
+        const lab = be.intent.label || "";
+        if (lab.indexOf("【II破】") >= 0) logCombat("⚠ 第二相・大破が来る — 次を読んで防げ／MP決め手を", true);
+        if (lab.indexOf("【III】力") >= 0) logCombat("第三相：力が乗る前に殻を裂け", true);
+      }
+    }
     c.player.ap = BASE_AP;
     logCombat("—— あなたのターン（AP " + BASE_AP + "）——");
     renderCombat();
@@ -591,9 +648,9 @@
       c.over = true;
       state.player.hp = c.player.hp;
       if (c.isBoss) {
-        showEnd(true, "三窓の主を打ち破った。窓の先は、まだ見えない。", {
+        showEnd(true, "三窓の主を打ち破った。三つの窓が同時に澄む——先は、まだ見えない。", {
           cause: "boss",
-          tip: "先読みとMPの割り振りが通った。",
+          tip: "殻→大破の相を窓で読めた。もう一回、別ルートで割き方を試せる。",
         });
       } else {
         offerReward(c.encounterGold || 0);
@@ -661,6 +718,7 @@
         card.className = "enemy-card rank-" + rank + packCls + (targeted ? " targeted" : "") + (dead ? " dead" : "");
         const intentLabel = dead ? "撃破" : (en.intent ? en.intent.label : "？");
         const heavy = !dead && en.intent && en.intent.kind === "attack" && (en.intent.value + (en.strength || 0)) >= 14;
+        const ikind = (!dead && en.intent && en.intent.kind) ? (" kind-" + en.intent.kind) : "";
         const weakTxt = en.weak > 0 ? "弱体" + en.weak : "";
         const pct = Math.max(0, Math.min(100, (en.hp / en.hpMax) * 100));
         const rankLabel = rank === "boss" ? "BOSS" : rank === "elite" ? "ELITE" : "";
@@ -670,7 +728,7 @@
           '<div class="ehp">HP <strong>' + en.hp + "</strong>/" + en.hpMax +
           " 🛡 <strong>" + en.block + "</strong></div>" +
           '<div class="ehpbar"><div class="hp-bar-fill enemy" style="width:' + pct + '%"></div></div>' +
-          '<div class="eintent' + (heavy ? " heavy" : "") + '">' + escapeHtml(intentLabel) + "</div>" +
+          '<div class="eintent' + ikind + (heavy ? " heavy" : "") + '">' + escapeHtml(intentLabel) + "</div>" +
           (weakTxt ? '<div class="weak-status">' + weakTxt + "</div>" : "") +
           (targeted ? '<div class="target-tag">ターゲット</div>' : "");
         if (!dead) {
@@ -718,6 +776,40 @@
     }
     $("deck-count").textContent = c.pile.length;
     $("btn-end-turn").disabled = !!c.over;
+    // R31: AP↔MP convert once / combat
+    let conv = $("convert-row");
+    if (!conv) {
+      const host = document.querySelector && document.querySelector("#screen-combat .combat-actions");
+      if (host) {
+        conv = document.createElement("div");
+        conv.id = "convert-row";
+        conv.className = "convert-row";
+        host.appendChild(conv);
+      }
+    }
+    if (conv) {
+      if (c.convertUsed || c.over) {
+        conv.innerHTML = '<span class="hint">気の往復：使用済（この戦闘）</span>';
+      } else {
+        conv.innerHTML = "";
+        const b1 = document.createElement("button");
+        b1.className = "btn";
+        b1.textContent = "往復 AP→MP";
+        b1.disabled = c.player.ap < 1;
+        b1.addEventListener("click", () => convertApMp("ap2mp"));
+        const b2 = document.createElement("button");
+        b2.className = "btn";
+        b2.textContent = "往復 MP→AP";
+        b2.disabled = c.player.mp < 1;
+        b2.addEventListener("click", () => convertApMp("mp2ap"));
+        conv.appendChild(b1);
+        conv.appendChild(b2);
+        const h = document.createElement("span");
+        h.className = "hint";
+        h.textContent = " 戦闘1回限り — 割く動詞の練習";
+        conv.appendChild(h);
+      }
+    }
   }
 
   // ——— Rewards ———
@@ -737,7 +829,8 @@
     const deckLen = state.player.deck.length;
     // Review3#1 anti-bloat: fat decks get 2 picks + skip pressure (window dies at ~16)
     const fat = deckLen >= 14;
-    const pickCount = fat ? 2 : 3;
+    const veryFat = deckLen >= 16;
+    const pickCount = veryFat ? 1 : (fat ? 2 : 3);
     const spendPool = (typeof SPEND_REWARD_POOL !== "undefined" && SPEND_REWARD_POOL.length)
       ? SPEND_REWARD_POOL : (typeof EARLY_REWARD_MP !== "undefined" ? EARLY_REWARD_MP : ["pierce", "finisher"]);
     // True spends only for the forced slot (no channel/siphon generators)
@@ -758,7 +851,8 @@
     const picks = ids.map((id, i) => makeCard(id, "rw" + Date.now() + i));
     state.reward = picks;
     let tip = needSpend ? "　※MPの使い道を1枚は拾え（店不要）" : "";
-    if (fat) tip += "　※山が厚い（" + deckLen + "枚）— スキップ／削除で窓を守れ";
+    if (veryFat) tip += "　※山が過厚（" + deckLen + "枚）— 1択のみ。スキップ推奨";
+    else if (fat) tip += "　※山が厚い（" + deckLen + "枚）— スキップ／削除で窓を守れ";
     $("reward-gold").textContent = "金 +" + gold + "（所持 " + state.player.gold + "）" + tip;
     const box = $("reward-cards");
     box.innerHTML = "";
@@ -794,7 +888,7 @@
     state.visited = [];
     state.available = ["c1"];
     state.mapPos = null;
-    state.flags = { firstRewardDone: false, seenEvents: [], meditate: null };
+    state.flags = { firstRewardDone: false, seenEvents: [], meditate: null, teachTipShown: false };
     goMap();
   }
 
@@ -830,6 +924,19 @@
         row.appendChild(el);
       });
       box.appendChild(row);
+    }
+    // R29: one-screen first-run tip (remove + window)
+    if (state.flags && !state.flags.teachTipShown) {
+      state.flags.teachTipShown = true;
+      try {
+        if (box && typeof box.insertBefore === "function" && typeof document !== "undefined" && document.createElement) {
+          const tip = document.createElement("div");
+          tip.className = "teach-tip";
+          tip.id = "teach-tip";
+          tip.innerHTML = "<strong>初回ヒント</strong> — ①敵意図と『次』を合わせて読む ②山が濁ったら店／休憩で<strong>削除</strong>。窓は薄いほど信じる。";
+          box.insertBefore(tip, box.firstChild);
+        }
+      } catch (e) { /* headless */ }
     }
   }
 
@@ -896,11 +1003,12 @@
   }
 
   function restMeditate() {
-    if (state.player.hp <= 8) {
-      // still allow but leave at 1
+    // R26: costlier HP trade so elite after meditation is not soft free power
+    const cost = 10;
+    if (state.player.hp <= cost) {
       state.player.hp = 1;
     } else {
-      state.player.hp -= 8;
+      state.player.hp -= cost;
     }
     if (!state.flags) state.flags = {};
     state.flags.meditate = { mp: 2, redrawNext: true };
@@ -1108,9 +1216,10 @@
           run: (st) => { st.player.deck.push(makeCard("swap_pick", "ev" + Date.now())); },
         },
         {
-          label: "火で暖まる（HP +16）",
+          label: "火で暖まる（HP +10、蓄気を得る）— 生存とMP源",
           run: (st) => {
-            st.player.hp = Math.min(st.player.hpMax, st.player.hp + 16);
+            st.player.hp = Math.min(st.player.hpMax, st.player.hp + 10);
+            st.player.deck.push(makeCard("store", "ev" + Date.now()));
           },
         },
         {
@@ -1252,6 +1361,7 @@
     openEvent,
     deckHasMpSpend,
     MP_SPEND_IDS,
+    convertApMp,
     api,
     _forceCombat(enemyId) {
       if (!state.player) startRun();

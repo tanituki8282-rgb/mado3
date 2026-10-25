@@ -140,6 +140,13 @@ const CARD_DEFS = {
     text: "次を山の底へ送り、別の次を見る。悪い次を捨てる。",
     effect: (g) => g.buryNext(),
   },
+  /** Combat-only (fight1 inject) — not in shop/reward/starter */
+  membrane_tear: {
+    id: "membrane_tear", name: "膜裂き", type: "attack",
+    ap: 0, mp: 1,
+    text: "敵に 9 ダメージ（ブロック無視）。初戦の裂け目。恒常山札には残らない。",
+    effect: (g) => g.dealDamageToEnemy(9 + g.attackBonus(), { ignoreBlock: true }),
+  },
 };
 
 /** Starter: attacks, blocks, MP path (siphon+store), next-tech */
@@ -169,12 +176,13 @@ function makeCard(defId, uid) {
 }
 
 const SHOP_POOL = [
-  "heavy", "iron", "finisher", "burst", "pierce", "channel",
+  "finisher", "burst", "pierce", "channel",
   "siphon", "swap_window", "focus",
   "weaken", "redraw_next", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
+  "iron",
 ];
 const REWARD_POOL = [
-  "iron", "channel", "siphon", "swap_window", "pierce", "weaken",
+  "channel", "siphon", "swap_window", "pierce", "weaken",
   "finisher", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
   "redraw_next", "burst",
 ];
@@ -228,20 +236,20 @@ const ENEMIES = {
     gold: 26,
   },
   elite: {
-    id: "elite", name: "窓守りの精鋭", hp: 66, emoji: "⚔️",
+    id: "elite", name: "窓守りの精鋭", hp: 72, emoji: "⚔️",
     pattern: [
-      { kind: "block", value: 15, label: "窓殻 15" },
-      { kind: "attack", value: 15, label: "攻撃 15" },
-      { kind: "block", value: 12, label: "防御 12" },
-      { kind: "attack", value: 19, label: "強撃 19" },
+      { kind: "block", value: 16, label: "窓殻 16" },
+      { kind: "attack", value: 16, label: "攻撃 16" },
+      { kind: "block", value: 13, label: "防御 13" },
+      { kind: "attack", value: 20, label: "強撃 20" },
       { kind: "buff", value: 3, label: "力+3" },
-      { kind: "attack", value: 16, label: "連撃 16" },
+      { kind: "attack", value: 17, label: "連撃 17" },
     ],
     gold: 52,
   },
   /** Alternate elites — same map node may roll these */
   elite_wraith: {
-    id: "elite_wraith", name: "霧の精鋭", hp: 58, emoji: "👻",
+    id: "elite_wraith", name: "霧の精鋭", hp: 62, emoji: "👻",
     pattern: [
       { kind: "attack", value: 11, label: "霧打ち 11" },
       { kind: "buff", value: 2, label: "力+2" },
@@ -253,7 +261,7 @@ const ENEMIES = {
     mod: "fog",
   },
   elite_breaker: {
-    id: "elite_breaker", name: "殻砕きの精鋭", hp: 62, emoji: "🪨",
+    id: "elite_breaker", name: "殻砕きの精鋭", hp: 66, emoji: "🪨",
     pattern: [
       { kind: "block", value: 16, label: "岩殻 16" },
       { kind: "attack", value: 12, label: "攻撃 12" },
@@ -265,7 +273,7 @@ const ENEMIES = {
     mod: "thick",
   },
   elite_drain: {
-    id: "elite_drain", name: "気奪いの精鋭", hp: 60, emoji: "🟣",
+    id: "elite_drain", name: "気奪いの精鋭", hp: 64, emoji: "🟣",
     pattern: [
       { kind: "attack", value: 10, label: "気奪い 10" },
       { kind: "block", value: 9, label: "防御 9" },
@@ -277,15 +285,15 @@ const ENEMIES = {
     mod: "drain",
   },
   boss: {
-    id: "boss", name: "三窓の主", hp: 98, emoji: "👁️",
+    id: "boss", name: "三窓の主", hp: 102, emoji: "👁️",
     pattern: [
-      { kind: "block", value: 14, label: "三窓の殻 14" },
-      { kind: "attack", value: 16, label: "攻撃 16" },
-      { kind: "block", value: 12, label: "窓膜 12" },
-      { kind: "attack", value: 24, label: "大破 24" },
-      { kind: "buff", value: 4, label: "力+4" },
-      { kind: "attack", value: 14, label: "連撃 14" },
-      { kind: "block", value: 10, label: "再殻 10" },
+      { kind: "block", value: 14, label: "【I殻】三窓の殻 14" },
+      { kind: "attack", value: 16, label: "【I】攻撃 16" },
+      { kind: "block", value: 12, label: "【II膜】窓膜 12" },
+      { kind: "attack", value: 24, label: "【II破】大破 24" },
+      { kind: "buff", value: 4, label: "【III】力+4" },
+      { kind: "attack", value: 15, label: "【III】連撃 15" },
+      { kind: "block", value: 11, label: "【再殻】11" },
     ],
     gold: 0,
   },

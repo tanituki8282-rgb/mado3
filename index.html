@@ -30,12 +30,15 @@
             <li><span class="ap-pill">AP</span> は毎ターン回復。<span class="mp-pill">MP</span> は貯めた手数（回復しない）。</li>
             <li>敵の防御は次のあなたのターンまで残る。殻には貫通や決め手が効く。</li>
             <li>店の削除で山を薄くし、「次」の信頼を上げられる。</li>
-            <li>休憩の「窓瞑想」：HPと引き換えに次戦闘の初期MPと次の引き直し。</li>
+            <li>休憩の「窓瞑想」：HP-10と引き換えに次戦闘の初期MP+2と次の引き直し（精鋭は余波で硬くなる）。</li>
             <li>戦闘中キー: 1/2/3 で手札、E でターン終了。</li>
-            <li>意図アイコン: ⚔攻撃（⚠は重い） / 🛡防御 / ⬆強化。</li>
+            <li>意図アイコン: ⚔攻撃（⚠は重い・赤） / 🛡防御（青灰） / ⬆強化（紫）。</li>
             <li>休憩の「気の欠片」は店に頼らずMP路線を保証する保険。</li>
-            <li>山が厚いと窓が死ぬ。報酬スキップと店の削除が核の守り。</li>
+            <li>山が厚いと窓が死ぬ。報酬スキップと店の削除が核の守り（16枚超は報酬1択）。</li>
             <li>「読めた」報酬（次攻撃+/余韻MP）はプレイヤー欄に表示される。</li>
+            <li>初戦の山に『膜裂き』(MP1貫通)が混ざる — 貯めて使う練習。</li>
+            <li>戦闘1回だけ「気の往復」で AP↔MP を1点移せる。</li>
+            <li><strong>初回の要点</strong>：次を読む＋山が濁ったら削除。</li>
           </ul>
         </div>
       </div>
@@ -117,10 +120,10 @@
     <section id="screen-rest" class="screen hidden">
       <div class="panel center">
         <h2>休憩所</h2>
-        <p>回復、削除、または <strong>窓瞑想</strong>（HPを払い、次の戦闘でMPと先読みを得る）。</p>
+        <p>回復、削除、または <strong>窓瞑想</strong>（HP-10を払い、次戦闘でMP+2と先読み。精鋭は余波で硬くなる）。</p>
         <button id="btn-rest-heal" class="btn primary">休む（最大HPの30%回復）</button>
         <button id="btn-rest-remove" class="btn">カード削除</button>
-        <button id="btn-rest-meditate" class="btn">窓瞑想（HP -8 → 次戦闘 MP+2＆開始時に次を一度引き直し）</button>
+        <button id="btn-rest-meditate" class="btn">窓瞑想（HP -10 → 次戦闘 MP+2＆開始時に次を一度引き直し）</button>
         <button id="btn-rest-gift" class="btn primary hidden">気の欠片を受け取る（無料でMP路線カード1枚・店不要）</button>
         <div id="rest-remove-list" class="card-row hidden"></div>
       </div>

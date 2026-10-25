@@ -23,6 +23,12 @@
   --window-frame: #4a6d5c;
   --btn-primary: #3d5f82;
   --heavy-intent-bg: #4a2020;
+  --intent-block: #6a7a8a;
+  --intent-block-bg: #1e2830;
+  --intent-buff: #8a7aaa;
+  --intent-buff-bg: #2a2434;
+  --target-warm: #c4a07a;
+  --target-warm-glow: rgba(196, 160, 122, 0.35);
   --radius: 10px;
   --font: "Hiragino Sans", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;
 }
@@ -101,6 +107,11 @@ body {
   padding: 0.85rem 1rem;
   border-radius: 8px;
   border: 1px solid #333548;
+}
+/* R25.x 紬: player panel = thin window-green (not flatter than ranked enemies) */
+.actor.player {
+  border: 1px solid var(--window-frame);
+  box-shadow: inset 0 0 18px rgba(74, 109, 92, 0.1), 0 0 0 1px rgba(74, 109, 92, 0.22);
 }
 .actor .name { font-weight: 700; margin-bottom: 0.35rem; letter-spacing: 0.06em; }
 .vs {
@@ -305,8 +316,9 @@ body {
   box-shadow: 0 0 14px rgba(217, 107, 107, 0.35), 0 0 0 1px rgba(217, 107, 107, 0.45);
 }
 .enemy-card.targeted {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 4px 14px rgba(142, 196, 212, 0.2);
+  /* R25.x 紬: target = soft warm (map selectable keeps accent cyan) */
+  border-color: var(--target-warm);
+  box-shadow: 0 0 0 1px var(--target-warm), 0 4px 14px var(--target-warm-glow);
 }
 .enemy-card.rank-boss.targeted {
   border-color: var(--danger);
@@ -322,6 +334,21 @@ body {
   padding: 0.22rem 0.7rem; font-size: 0.88rem; font-weight: 700;
   letter-spacing: 0.02em;
 }
+/* R25.x 紬: intent pills not all danger-red */
+.enemy-card .eintent.kind-block {
+  background: var(--intent-block-bg); color: #b0c0d0;
+  border-color: var(--intent-block);
+  box-shadow: none;
+}
+.enemy-card .eintent.kind-buff {
+  background: var(--intent-buff-bg); color: #c8b8e0;
+  border-color: var(--intent-buff);
+  box-shadow: none;
+}
+.enemy-card .eintent.kind-attack {
+  background: #3a2020; color: #f0a0a0;
+  border-color: #804040;
+}
 .enemy-card .eintent.heavy {
   background: var(--heavy-intent-bg);
   border-color: var(--danger);
@@ -329,7 +356,7 @@ body {
   box-shadow: 0 0 8px rgba(217, 107, 107, 0.35);
   padding: 0.28rem 0.8rem;
 }
-.enemy-card .target-tag { color: var(--accent); font-size: 0.75rem; margin-top: 0.25rem; }
+.enemy-card .target-tag { color: var(--target-warm); font-size: 0.75rem; margin-top: 0.25rem; }
 .enemy-card .ehpbar {
   height: 6px; background: #2a2c3a; border-radius: 3px; overflow: hidden; margin: 0.3rem 0;
 }
@@ -412,3 +439,27 @@ body {
 }
 .wbuff.mp-pending { color: var(--muted); border-style: dashed; }
 .wbuff.muted { color: var(--muted); font-weight: 500; }
+
+
+/* R25.x / R29 teach + R31 convert */
+.teach-tip {
+  background: #1a2430;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(142, 196, 212, 0.2);
+}
+.convert-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+.enemy-card.rank-boss {
+  animation: bossPulse 2.8s ease-in-out infinite;
+}
+@keyframes bossPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(217, 107, 107, 0.35), 0 0 0 1px rgba(217, 107, 107, 0.45); }
+  50% { box-shadow: 0 0 22px rgba(217, 107, 107, 0.55), 0 0 0 1px rgba(217, 107, 107, 0.6); }
+}

@@ -49,9 +49,9 @@ const CARD_DEFS = {
     effect: (g) => g.redrawNext(),
   },
   redraw_next_mp: {
-    id: "redraw_next_mp", name: "深読み破棄", type: "tech",
+    id: "redraw_next_mp", name: "深読み", type: "tech",
     ap: 0, mp: 1,
-    text: "次を山に戻し、別の次を見る（AP不要・MP1）。",
+    text: "次を入れ替え読む（AP0・MP1）。合いで報酬。",
     effect: (g) => g.redrawNext(),
   },
   swap_window: {
@@ -68,9 +68,9 @@ const CARD_DEFS = {
   },
   finisher: {
     id: "finisher", name: "決壊", type: "attack",
-    ap: 2, mp: 2,
-    text: "敵に 24 ダメージ。MPを要する決め手。",
-    effect: (g) => g.dealDamageToEnemy(24 + g.attackBonus()),
+    ap: 1, mp: 2,
+    text: "敵に 22 ダメージ。MP2の決め手（APは1だけ）。",
+    effect: (g) => g.dealDamageToEnemy(22 + g.attackBonus()),
   },
   burst: {
     id: "burst", name: "気爆", type: "attack",
@@ -144,11 +144,12 @@ const CARD_DEFS = {
 
 /** Starter: attacks, blocks, MP path (siphon+store), next-tech */
 function makeStarterDeck() {
+  // R17+/Review3: thin starter — poke cut; 1 fewer guard; denser window/MP path (deck ≤11)
   const ids = [
     "slash", "slash",
-    "heavy", "poke",
-    "guard", "guard", "guard", "iron",
-    "store", "siphon", "redraw_next", "redraw_next",
+    "heavy",
+    "guard", "guard", "iron",
+    "store", "siphon", "redraw_next", "redraw_next", "focus",
   ];
   return ids.map((id, i) => makeCard(id, `s${i}`));
 }
@@ -169,17 +170,16 @@ function makeCard(defId, uid) {
 
 const SHOP_POOL = [
   "heavy", "iron", "finisher", "burst", "pierce", "channel",
-  "stance_off", "siphon", "swap_window", "focus",
+  "siphon", "swap_window", "focus",
   "weaken", "redraw_next", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
 ];
 const REWARD_POOL = [
-  "heavy", "guard", "iron", "store", "channel",
-  "siphon", "focus", "swap_window", "pierce", "weaken",
+  "iron", "channel", "siphon", "swap_window", "pierce", "weaken",
   "finisher", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
-  "redraw_next",
+  "redraw_next", "burst",
 ];
 /** First combat reward: always include at least one MP-payoff option */
-const EARLY_REWARD_MP = ["channel", "pierce", "finisher", "siphon", "weaken", "swap_window", "swap_pick", "bury_next"];
+const EARLY_REWARD_MP = ["pierce", "finisher", "weaken", "swap_window", "swap_pick", "bury_next", "redraw_next_mp", "channel"];
 /** Guaranteed until deck owns a true MP-spend (not mere generators) */
 const SPEND_REWARD_POOL = ["pierce", "finisher", "weaken", "burst", "swap_window", "swap_pick", "bury_next", "redraw_next_mp", "scry_deep"];
 
@@ -217,28 +217,31 @@ const ENEMIES = {
     gold: 28,
   },
   knight: {
-    id: "knight", name: "見習い騎士", hp: 36, emoji: "🗡️",
+    id: "knight", name: "見習い騎士", hp: 40, emoji: "🗡️",
     pattern: [
-      { kind: "attack", value: 10, label: "攻撃 10" },
-      { kind: "block", value: 8, label: "防御 8" },
-      { kind: "attack", value: 12, label: "攻撃 12" },
+      { kind: "block", value: 9, label: "盾構える 9" },
+      { kind: "attack", value: 11, label: "攻撃 11" },
+      { kind: "block", value: 10, label: "鉄壁 10" },
+      { kind: "attack", value: 14, label: "突き 14" },
+      { kind: "buff", value: 2, label: "力+2" },
     ],
-    gold: 25,
+    gold: 26,
   },
   elite: {
-    id: "elite", name: "窓守りの精鋭", hp: 62, emoji: "⚔️",
+    id: "elite", name: "窓守りの精鋭", hp: 66, emoji: "⚔️",
     pattern: [
-      { kind: "block", value: 14, label: "窓殻 14" },
-      { kind: "attack", value: 14, label: "攻撃 14" },
-      { kind: "block", value: 10, label: "防御 10" },
-      { kind: "attack", value: 18, label: "強撃 18" },
+      { kind: "block", value: 15, label: "窓殻 15" },
+      { kind: "attack", value: 15, label: "攻撃 15" },
+      { kind: "block", value: 12, label: "防御 12" },
+      { kind: "attack", value: 19, label: "強撃 19" },
       { kind: "buff", value: 3, label: "力+3" },
+      { kind: "attack", value: 16, label: "連撃 16" },
     ],
-    gold: 50,
+    gold: 52,
   },
   /** Alternate elites — same map node may roll these */
   elite_wraith: {
-    id: "elite_wraith", name: "霧の精鋭", hp: 54, emoji: "👻",
+    id: "elite_wraith", name: "霧の精鋭", hp: 58, emoji: "👻",
     pattern: [
       { kind: "attack", value: 11, label: "霧打ち 11" },
       { kind: "buff", value: 2, label: "力+2" },
@@ -250,7 +253,7 @@ const ENEMIES = {
     mod: "fog",
   },
   elite_breaker: {
-    id: "elite_breaker", name: "殻砕きの精鋭", hp: 58, emoji: "🪨",
+    id: "elite_breaker", name: "殻砕きの精鋭", hp: 62, emoji: "🪨",
     pattern: [
       { kind: "block", value: 16, label: "岩殻 16" },
       { kind: "attack", value: 12, label: "攻撃 12" },
@@ -262,7 +265,7 @@ const ENEMIES = {
     mod: "thick",
   },
   elite_drain: {
-    id: "elite_drain", name: "気奪いの精鋭", hp: 56, emoji: "🟣",
+    id: "elite_drain", name: "気奪いの精鋭", hp: 60, emoji: "🟣",
     pattern: [
       { kind: "attack", value: 10, label: "気奪い 10" },
       { kind: "block", value: 9, label: "防御 9" },
@@ -274,22 +277,23 @@ const ENEMIES = {
     mod: "drain",
   },
   boss: {
-    id: "boss", name: "三窓の主", hp: 92, emoji: "👁️",
+    id: "boss", name: "三窓の主", hp: 98, emoji: "👁️",
     pattern: [
-      { kind: "block", value: 12, label: "三窓の殻 12" },
+      { kind: "block", value: 14, label: "三窓の殻 14" },
       { kind: "attack", value: 16, label: "攻撃 16" },
-      { kind: "block", value: 10, label: "防御 10" },
-      { kind: "attack", value: 22, label: "大破 22" },
+      { kind: "block", value: 12, label: "窓膜 12" },
+      { kind: "attack", value: 24, label: "大破 24" },
       { kind: "buff", value: 4, label: "力+4" },
-      { kind: "attack", value: 12, label: "連撃 12" },
+      { kind: "attack", value: 14, label: "連撃 14" },
+      { kind: "block", value: 10, label: "再殻 10" },
     ],
     gold: 0,
   },
   rat: {
-    id: "rat", name: "窓ネズミ", hp: 14, emoji: "🐀",
+    id: "rat", name: "窓ネズミ", hp: 16, emoji: "🐀",
     pattern: [
-      { kind: "attack", value: 5, label: "噛みつき 5" },
-      { kind: "attack", value: 4, label: "かじる 4" },
+      { kind: "attack", value: 6, label: "噛みつき 6" },
+      { kind: "attack", value: 5, label: "かじる 5" },
       { kind: "buff", value: 1, label: "力+1" },
     ],
     gold: 10,
@@ -304,6 +308,15 @@ const ENEMIES = {
     ],
     gold: 26,
   },
+  shade_pup: {
+    id: "shade_pup", name: "小さな影", hp: 18, emoji: "👤",
+    pattern: [
+      { kind: "attack", value: 6, label: "影打ち 6" },
+      { kind: "block", value: 5, label: "影膜 5" },
+      { kind: "attack", value: 8, label: "切り込み 8" },
+    ],
+    gold: 0,
+  },
 };
 
 /** Multi-enemy light packs (2 weak). Key used as map enemy id. */
@@ -314,6 +327,14 @@ const ENEMY_PACKS = {
     id: "dual_rats",
     name: "ネズミの群れ",
     members: ["rat", "rat"],
-    gold: 22,
+    gold: 24,
+  },
+  rat_shade: {
+    id: "rat_shade",
+    name: "影とネズミ",
+    members: ["rat", "shade_pup"],
+    gold: 28,
   },
 };
+
+

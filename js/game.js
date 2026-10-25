@@ -9,6 +9,12 @@
   const BASE_AP = 3;
   const HAND_SIZE = 3;
   const REMOVE_COST = 20;
+  function removeCostNow() {
+    const n = state.player && state.player.deck ? state.player.deck.length : 12;
+    if (n >= 16) return 12;
+    if (n >= 14) return 15;
+    return REMOVE_COST;
+  }
 
   /** Map: short 1-act with one branch */
   /** 1-act map with 2–3 branches; ~10–12 nodes possible per path */
@@ -18,7 +24,7 @@
     { id: "ev1", type: "event", label: "出来事", layer: 1, next: ["c2b", "c2c"] },
     { id: "c2b", type: "combat", label: "戦闘：ネズミの群れ", enemy: "dual_rats", layer: 2, next: ["rest1"] },
     { id: "c2c", type: "combat", label: "戦闘：見習い騎士", enemy: "knight", layer: 2, next: ["rest1"] },
-    { id: "c3", type: "combat", label: "戦闘：影法師", enemy: "shade", layer: 2, next: ["rest1"] },
+    { id: "c3", type: "combat", label: "戦闘：影とネズミ", enemy: "rat_shade", layer: 2, next: ["rest1"] },
     { id: "rest1", type: "rest", label: "休憩所", layer: 3, next: ["shop1", "ev2"] },
     { id: "shop1", type: "shop", label: "店", layer: 4, next: ["elite"] },
     { id: "ev2", type: "event", label: "出来事", layer: 4, next: ["elite"] },
@@ -185,6 +191,7 @@
       get enemy() { return this.enemies[this.targetIndex] || this.enemies.find((e) => e.hp > 0) || this.enemies[0]; },
       encounterGold: gold,
       encounterName: packName,
+      encounterRank: "normal",
       player: {
         hp: state.player.hp,
         hpMax: state.player.hpMax,
@@ -200,6 +207,10 @@
       isBoss: enemyId === "boss",
       windowResonance: 0,
       eliteMod: null,
+      isPack: !!pack,
+      readAttackBonus: 0,
+      readMpGranted: false,
+      readBlockBonus: 0,
     };
     // Ensure target is living
     retargetIfNeeded();
@@ -220,7 +231,16 @@
         applyEliteMod(m);
       }
     }
+    // Rank for UI (紬): boss > elite (mod / pool / node) > normal
+    if (enemyId === "boss") state.combat.encounterRank = "boss";
+    else if (state.combat.eliteMod || enemyId === "elite" || (typeof ELITE_POOL !== "undefined" && ELITE_POOL.indexOf(enemyId) >= 0))
+      state.combat.encounterRank = "elite";
+    else state.combat.encounterRank = "normal";
     show("combat");
+    try {
+      const hdr = document.querySelector && document.querySelector("#screen-combat .combat-header");
+      if (hdr && hdr.classList) hdr.classList.toggle("pack-fight", !!pack);
+    } catch (e) { /* headless */ }
     renderCombat();
     logCombat(packName + " が現れた！", true);
     if (state.combat.eliteMod) {
@@ -229,7 +249,7 @@
     }
     logCombat("ヒント: 次を見て、今切るか蓄気（MP）するか。大攻撃の前は防御を窓から引き込め。");
     if (enemyId === "slime") {
-      logCombat("初戦: 膜のターンは斬撃が弱い。大殴りの前は「次」が防御か、先読み破棄で掘れ。", true);
+      logCombat("初戦: 膜のターンは斬撃が弱い。蓄気／気吸いでMPを貯め、大殴りの前は次を読め。", true);
     }
     if (enemies.length > 1) logCombat("複数体：カードは選択中の敵へ。クリックでターゲット変更。");
     if (state.flags && state.flags.meditate) {
@@ -311,6 +331,7 @@
     if (ok) {
       if (need === "block") {
         state.combat.player.block += 2;
+        state.combat.readBlockBonus = (state.combat.readBlockBonus || 0) + 2;
         logCombat(source + "：読めた！ 次『" + card.name + "』は大攻撃に合う → ブロック+2", true);
       } else {
         state.combat.readAttackBonus = (state.combat.readAttackBonus || 0) + 2;
@@ -322,9 +343,12 @@
         state.combat.readMpGranted = true;
         logCombat("窓の余韻：MP +1（この戦闘で最初の「読めた」）", true);
       }
+      renderCombat();
       return true;
     }
-    logCombat(source + "：次『" + card.name + "』は今の意図と不一致");
+    // Consolation: dig still teaches without feeling like pure AP tax
+    state.combat.player.block += 1;
+    logCombat(source + "：次『" + card.name + "』は不一致 — 探りブロック+1", true);
     return false;
   }
 
@@ -605,6 +629,25 @@
     if (pbar) pbar.style.width = Math.max(0, Math.min(100, (p.hp / p.hpMax) * 100)) + "%";
     $("p-stance").textContent = p.stance === "offense" ? "構え：攻め（攻撃+3）"
       : p.stance === "defense" ? "構え：守り（ブロック+2）" : "";
+    // Review3: board-visible 「読めた」 buffs (not log-only)
+    let buffEl = $("window-buffs");
+    if (!buffEl) {
+      const host = document.querySelector && document.querySelector("#screen-combat .actor.player");
+      if (host) {
+        buffEl = document.createElement("div");
+        buffEl.id = "window-buffs";
+        buffEl.className = "window-buffs";
+        host.appendChild(buffEl);
+      }
+    }
+    if (buffEl) {
+      const parts = [];
+      if (c.readAttackBonus > 0) parts.push('<span class="wbuff atk">次攻撃 +' + c.readAttackBonus + "</span>");
+      if (c.readMpGranted) parts.push('<span class="wbuff mp">余韻 MP済</span>');
+      else parts.push('<span class="wbuff mp-pending">余韻まだ</span>');
+      if (c.readBlockBonus > 0) parts.push('<span class="wbuff blk">読了ブロック +' + c.readBlockBonus + "</span>");
+      buffEl.innerHTML = parts.length ? parts.join(" ") : '<span class="wbuff muted">窓：未読</span>';
+    }
     // Multi-enemy panel
     const list = $("enemy-list");
     if (list) {
@@ -613,16 +656,21 @@
         const card = document.createElement("div");
         const dead = en.hp <= 0;
         const targeted = idx === c.targetIndex && !dead;
-        card.className = "enemy-card" + (targeted ? " targeted" : "") + (dead ? " dead" : "");
+        const rank = c.encounterRank || "normal";
+        const packCls = c.isPack ? " pack-member" : "";
+        card.className = "enemy-card rank-" + rank + packCls + (targeted ? " targeted" : "") + (dead ? " dead" : "");
         const intentLabel = dead ? "撃破" : (en.intent ? en.intent.label : "？");
+        const heavy = !dead && en.intent && en.intent.kind === "attack" && (en.intent.value + (en.strength || 0)) >= 14;
         const weakTxt = en.weak > 0 ? "弱体" + en.weak : "";
         const pct = Math.max(0, Math.min(100, (en.hp / en.hpMax) * 100));
+        const rankLabel = rank === "boss" ? "BOSS" : rank === "elite" ? "ELITE" : "";
         card.innerHTML =
           '<div class="ename">' + escapeHtml((en.emoji ? en.emoji + " " : "") + en.name) + "</div>" +
+          (rankLabel ? '<div class="rank-tag">' + rankLabel + "</div>" : "") +
           '<div class="ehp">HP <strong>' + en.hp + "</strong>/" + en.hpMax +
           " 🛡 <strong>" + en.block + "</strong></div>" +
           '<div class="ehpbar"><div class="hp-bar-fill enemy" style="width:' + pct + '%"></div></div>' +
-          '<div class="eintent">' + escapeHtml(intentLabel) + "</div>" +
+          '<div class="eintent' + (heavy ? " heavy" : "") + '">' + escapeHtml(intentLabel) + "</div>" +
           (weakTxt ? '<div class="weak-status">' + weakTxt + "</div>" : "") +
           (targeted ? '<div class="target-tag">ターゲット</div>' : "");
         if (!dead) {
@@ -686,23 +734,31 @@
     let ids;
     if (!state.flags) state.flags = {};
     const needSpend = !deckHasMpSpend();
+    const deckLen = state.player.deck.length;
+    // Review3#1 anti-bloat: fat decks get 2 picks + skip pressure (window dies at ~16)
+    const fat = deckLen >= 14;
+    const pickCount = fat ? 2 : 3;
     const spendPool = (typeof SPEND_REWARD_POOL !== "undefined" && SPEND_REWARD_POOL.length)
       ? SPEND_REWARD_POOL : (typeof EARLY_REWARD_MP !== "undefined" ? EARLY_REWARD_MP : ["pierce", "finisher"]);
+    // True spends only for the forced slot (no channel/siphon generators)
+    const trueSpend = spendPool.filter((id) => MP_SPEND_IDS.includes(id));
     if (needSpend) {
-      // First reward can still mix generators; after that, force a true spend option
-      const forcePool = state.flags.firstRewardDone ? spendPool : (typeof EARLY_REWARD_MP !== "undefined" ? EARLY_REWARD_MP : spendPool);
+      const forcePool = trueSpend.length ? trueSpend : spendPool;
       const mpPick = pickRandom(forcePool, 1)[0];
-      const restPool = REWARD_POOL.filter((id) => id !== mpPick);
-      ids = [mpPick].concat(pickRandom(restPool, 2));
+      const restPool = REWARD_POOL.filter((id) => id !== mpPick && (fat ? MP_SPEND_IDS.includes(id) || id === "channel" : true));
+      ids = [mpPick].concat(pickRandom(restPool, Math.max(0, pickCount - 1)));
       shuffle(ids);
       state.flags.firstRewardDone = true;
       state.flags.mpPayoffGuaranteed = true;
     } else {
-      ids = pickRandom(REWARD_POOL, 3);
+      // Prefer window/spend over pure bulk when fat
+      const pool = fat ? REWARD_POOL.filter((id) => MP_SPEND_IDS.includes(id) || id === "redraw_next" || id === "channel") : REWARD_POOL;
+      ids = pickRandom(pool.length ? pool : REWARD_POOL, pickCount);
     }
     const picks = ids.map((id, i) => makeCard(id, "rw" + Date.now() + i));
     state.reward = picks;
-    const tip = needSpend ? "　※まだMPの使い道が薄い — 導気／貫通／窓札を検討" : "";
+    let tip = needSpend ? "　※MPの使い道を1枚は拾え（店不要）" : "";
+    if (fat) tip += "　※山が厚い（" + deckLen + "枚）— スキップ／削除で窓を守れ";
     $("reward-gold").textContent = "金 +" + gold + "（所持 " + state.player.gold + "）" + tip;
     const box = $("reward-cards");
     box.innerHTML = "";
@@ -715,12 +771,12 @@
           goMap();
         },
       }));
-      // tag spend options in DOM via price-like hint
-      if (isSpend && needSpend && box.lastChild) {
+      if (isSpend && box.lastChild) {
         const tag = document.createElement("div");
         tag.className = "price";
-        tag.textContent = "MP路線";
+        tag.textContent = needSpend ? "MP路線" : "MP消費";
         box.lastChild.appendChild(tag);
+        if (box.lastChild.classList) box.lastChild.classList.add("mp-route");
       }
     });
     show("reward");
@@ -753,7 +809,11 @@
     const maxLayer = MAP.reduce((m, n) => Math.max(m, n.layer || 0), 0);
     for (let layer = 0; layer <= maxLayer; layer++) {
       const row = document.createElement("div");
-      row.className = "map-layer";
+      let depthCls = "depth-mid";
+      if (layer <= 1) depthCls = "depth-near";
+      else if (layer >= maxLayer) depthCls = "depth-boss";
+      else if (layer >= maxLayer - 2) depthCls = "depth-far";
+      row.className = "map-layer " + depthCls;
       const nodes = MAP.filter((n) => (n.layer || 0) === layer);
       nodes.forEach((node) => {
         const el = document.createElement("div");
@@ -858,19 +918,25 @@
     renderShop();
     show("shop");
     $("shop-log").innerHTML = "";
+    const fat = state.player.deck.length >= 14;
+    logShop(fat
+      ? "店主：「山が厚いな。削除で『次』を信じやすくしろ。」"
+      : "店主：「買うより、まず要らない1枚を削るのも手だ。」");
   }
 
   function shopPrice(card) {
-    if (card.defId === "finisher" || card.defId === "burst") return 55;
-    if (card.defId === "pierce" || card.defId === "weaken") return 42;
-    if (card.defId === "channel") return 34;
-    if (card.defId === "scry_deep") return 36;
-    if (card.defId === "swap_pick" || card.defId === "bury_next") return 38;
-    if (card.defId === "redraw_next_mp") return 32;
-    if (card.type === "stance") return 40;
-    if (card.type === "tech") return 35;
-    if (card.ap >= 2) return 40;
-    return 28;
+    // Review3/R21: MP spends affordable; avoid filler traps priced like payoffs
+    if (card.defId === "finisher" || card.defId === "burst") return 48;
+    if (card.defId === "pierce" || card.defId === "weaken") return 36;
+    if (card.defId === "channel") return 28;
+    if (card.defId === "scry_deep") return 34;
+    if (card.defId === "swap_pick" || card.defId === "bury_next") return 34;
+    if (card.defId === "redraw_next_mp" || card.defId === "swap_window") return 30;
+    if (card.defId === "redraw_next" || card.defId === "focus") return 22;
+    if (card.type === "stance") return 36;
+    if (card.type === "tech") return 30;
+    if (card.ap >= 2) return 36;
+    return 26;
   }
 
   function renderShop() {
@@ -895,17 +961,23 @@
     });
     const rem = $("shop-remove");
     rem.innerHTML = "";
+    const rc = removeCostNow();
     if (!state.shop.removed) {
+      const teach = document.createElement("p");
+      teach.className = "hint";
+      teach.textContent = "削除 " + rc + "金（山が厚いほど安い）。薄い山＝『次』が読める。";
+      rem.appendChild(teach);
       state.player.deck.forEach((card, i) => {
         rem.appendChild(renderCardEl(card, {
-          price: REMOVE_COST,
-          disabled: state.player.gold < REMOVE_COST || state.player.deck.length <= 5,
+          price: rc,
+          disabled: state.player.gold < rc || state.player.deck.length <= 5,
           onClick: () => {
-            if (state.player.gold < REMOVE_COST || state.player.deck.length <= 5) return;
-            state.player.gold -= REMOVE_COST;
+            const cost = removeCostNow();
+            if (state.player.gold < cost || state.player.deck.length <= 5) return;
+            state.player.gold -= cost;
             const gone = state.player.deck.splice(i, 1)[0];
             state.shop.removed = true;
-            logShop("削除: " + gone.name);
+            logShop("削除: " + gone.name + "（-" + cost + "金）— 窓が澄んだ");
             renderShop();
           },
         }));
@@ -923,85 +995,100 @@
       body: "苔むした石に窓が彫られている。触れると冷たい気配が走る。",
       choices: [
         {
-          label: "祈る（HP +12、金 -12）",
-          run: (s) => {
-            if (s.player.gold >= 12) s.player.gold -= 12;
-            else s.player.gold = 0;
-            s.player.hp = Math.min(s.player.hpMax, s.player.hp + 12);
+          label: "祈る（HP +10、金 -10）— 生存を買う",
+          run: (st) => {
+            if (st.player.gold >= 10) st.player.gold -= 10;
+            else st.player.gold = 0;
+            st.player.hp = Math.min(st.player.hpMax, st.player.hp + 10);
           },
         },
         {
-          label: "気を凝らす（デッキに導気を追加）",
-          run: (s) => { s.player.deck.push(makeCard("channel", "ev" + Date.now())); },
+          label: "気を凝らす（導気を追加）— APでMPを貯める道",
+          run: (st) => { st.player.deck.push(makeCard("channel", "ev" + Date.now())); },
         },
         {
-          label: "窓に手を入れる（HP -8、深読み破棄を得る）",
-          run: (s) => {
-            s.player.hp = Math.max(1, s.player.hp - 8);
-            s.player.deck.push(makeCard("redraw_next_mp", "ev" + Date.now()));
+          label: "窓に手を入れる（HP -8、深読みを得る）— MPで窓を読む",
+          run: (st) => {
+            st.player.hp = Math.max(1, st.player.hp - 8);
+            st.player.deck.push(makeCard("redraw_next_mp", "ev" + Date.now()));
           },
         },
-        { label: "離れる", run: () => {} },
+        {
+          label: "斬撃を1枚捧げ、先読みを得る（山を薄く）",
+          run: (st) => {
+            const i = st.player.deck.findIndex((c) => c.defId === "slash");
+            if (i >= 0) st.player.deck.splice(i, 1);
+            st.player.deck.push(makeCard("redraw_next", "ev" + Date.now()));
+          },
+        },
       ],
     },
     {
       id: "merchant_ghost",
       title: "行商人の亡霊",
-      body: "「金か、気か、荷物か——一つだけ持っていけ。」影が笑う。",
+      body: "「金か、決め手か、荷物か——窓を濁らせるな。」影が笑う。",
       choices: [
         {
-          label: "金を掴む（+40金、ランダムな攻撃を1枚追加）",
-          run: (s) => {
-            s.player.gold += 40;
-            s.player.deck.push(makeCard("slash", "ev" + Date.now()));
+          label: "金を掴む（+35金）— 店の削除用",
+          run: (st) => { st.player.gold += 35; },
+        },
+        {
+          label: "気を貰う（決壊を追加、金 -15）— MP決め手",
+          run: (st) => {
+            if (st.player.gold >= 15) st.player.gold -= 15;
+            else st.player.gold = 0;
+            st.player.deck.push(makeCard("finisher", "ev" + Date.now()));
           },
         },
         {
-          label: "気を貰う（デッキに決壊を追加、金 -20）",
-          run: (s) => {
-            if (s.player.gold >= 20) s.player.gold -= 20;
-            else s.player.gold = 0;
-            s.player.deck.push(makeCard("finisher", "ev" + Date.now()));
-          },
+          label: "荷物を減らす（無料で山から1枚削除）— 反肥大",
+          run: (st) => { st.pendingEventRemove = true; },
         },
         {
-          label: "荷物を減らす（無料で山から1枚削除）",
-          run: (s) => {
-            s.pendingEventRemove = true;
+          label: "窓札を乞う（窓入替を得る、HP -6）",
+          run: (st) => {
+            st.player.hp = Math.max(1, st.player.hp - 6);
+            st.player.deck.push(makeCard("swap_window", "ev" + Date.now()));
           },
         },
-        { label: "無視する", run: () => {} },
       ],
     },
     {
       id: "mirror_well",
       title: "鏡の井戸",
-      body: "水面に次の一手だけが映る。代償を払えば、今の自分を書き換えられる。",
+      body: "水面に次の一手だけが映る。代償を払えば、割く先を書き換えられる。",
       choices: [
         {
-          label: "映す（HP -5、貫通を得る）",
-          run: (s) => {
-            s.player.hp = Math.max(1, s.player.hp - 5);
-            s.player.deck.push(makeCard("pierce", "ev" + Date.now()));
+          label: "映す（HP -5、貫通を得る）— 殻向けMP消費",
+          run: (st) => {
+            st.player.hp = Math.max(1, st.player.hp - 5);
+            st.player.deck.push(makeCard("pierce", "ev" + Date.now()));
           },
         },
         {
-          label: "汲む（最大HP -5、金 +25）",
-          run: (s) => {
-            s.player.hpMax = Math.max(40, s.player.hpMax - 5);
-            if (s.player.hp > s.player.hpMax) s.player.hp = s.player.hpMax;
-            s.player.gold += 25;
+          label: "汲む（最大HP -4、金 +30）— 経済",
+          run: (st) => {
+            st.player.hpMax = Math.max(40, st.player.hpMax - 4);
+            if (st.player.hp > st.player.hpMax) st.player.hp = st.player.hpMax;
+            st.player.gold += 30;
           },
         },
         {
-          label: "砕く（弱体の印を得て、斬撃を1枚削除できれば削除）",
-          run: (s) => {
-            s.player.deck.push(makeCard("weaken", "ev" + Date.now()));
-            const i = s.player.deck.findIndex((c) => c.defId === "slash");
-            if (i >= 0) s.player.deck.splice(i, 1);
+          label: "砕く（弱体の印＋斬撃1枚削除）— MP路線＋間引き",
+          run: (st) => {
+            st.player.deck.push(makeCard("weaken", "ev" + Date.now()));
+            const i = st.player.deck.findIndex((c) => c.defId === "slash");
+            if (i >= 0) st.player.deck.splice(i, 1);
           },
         },
-        { label: "井戸を離れる", run: () => {} },
+        {
+          label: "二度映す（二度先読みを得る、金 -25）",
+          run: (st) => {
+            if (st.player.gold >= 25) st.player.gold -= 25;
+            else st.player.gold = 0;
+            st.player.deck.push(makeCard("scry_deep", "ev" + Date.now()));
+          },
+        },
       ],
     },
     {
@@ -1010,23 +1097,30 @@
       body: "誰かが急いで逃げた跡。袋と、刺さった札が残っている。",
       choices: [
         {
-          label: "袋を漁る（金 +30、HP -10）",
-          run: (s) => {
-            s.player.gold += 30;
-            s.player.hp = Math.max(1, s.player.hp - 10);
+          label: "袋を漁る（金 +28、HP -8）",
+          run: (st) => {
+            st.player.gold += 28;
+            st.player.hp = Math.max(1, st.player.hp - 8);
           },
         },
         {
-          label: "札を読む（窓入替を得る）",
-          run: (s) => { s.player.deck.push(makeCard("swap_window", "ev" + Date.now())); },
+          label: "札を読む（窓選替を得る）— AP+MPで窓を選ぶ",
+          run: (st) => { st.player.deck.push(makeCard("swap_pick", "ev" + Date.now())); },
         },
         {
-          label: "火で暖まる（HP +18）",
-          run: (s) => {
-            s.player.hp = Math.min(s.player.hpMax, s.player.hp + 18);
+          label: "火で暖まる（HP +16）",
+          run: (st) => {
+            st.player.hp = Math.min(st.player.hpMax, st.player.hp + 16);
           },
         },
-        { label: "触れない", run: () => {} },
+        {
+          label: "札を燃やす（気爆を得る、デッキから防御1枚削除）",
+          run: (st) => {
+            st.player.deck.push(makeCard("burst", "ev" + Date.now()));
+            const i = st.player.deck.findIndex((c) => c.defId === "guard");
+            if (i >= 0) st.player.deck.splice(i, 1);
+          },
+        },
       ],
     },
   ];

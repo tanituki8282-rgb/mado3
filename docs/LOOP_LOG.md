@@ -187,3 +187,100 @@ Charter: LOOP_CHARTER.md — max 60 rounds. This log starts at Round 1.
   - Optional further elite/juice only if Top3 stays green
 - Decision: pause for external review — **not Done**
 
+## Round 16.5 / Review3（哀ちゃん・HEAD 080a966）
+- Prior Top3（fight1 / MP guarantee / window-read）mostly improved — do not reopen unless regression.
+- **New Top3** (highest first):
+  1. Stop deck bloat drowning the window — 蓄気/集中 etc → ~16 cards kills next-1 info. Thinning, tighter rewards, anti-bloat.
+  2. Show 「読めた」rewards on the board — next-atk+2 / 余韻 currently log-only; make UI-visible.
+  3. Shift「割く」weight toward MP — less shield-timing + AP-read bias; AP↔MP allocation should be the main verb.
+- Notes: fight1 better but true MP spend still thin there; spend rewards skippable/generator-heavy; miss costs AP feel bad; next-atk+2 not shown.
+- North star for R17–24: Review3 Top3 + 紬 visual pass (policy A). **Not Done.**
+
+## Round 17
+- Target gap: Harden fight1 under varied draws + slash-only fail regression smoke
+- What changed:
+  - Headless slash-only policy sim locked into smoke (N=20, allow ≤2 wins)
+  - Fight1 hint copy nudges MP store before big hit (not only shield-dig)
+- Evaluation: **better** (stability / regression lock)
+  - Evidence: sim 48 seeds — slash_only 0/48; block_no_window 2/48; window_read 48/48 avgHP~56; smoke r17-fight1-slash-fail wins 0
+- Decision: continue → visual + Review3
+
+## Round 17.5 / Visual（紬・policy A・カードイラストなし）
+- Target gap: Night-window visual hierarchy (紬 Top3)
+- What changed:
+  1. Color tokens: `--bg #0e0f14` / panel / `--accent #8ec4d4` / `--danger #d96b6b` / `--elite #c4895a`; glow on edges + one accent
+  2. Enemy card ranking: `rank-normal` / `rank-elite`(+✦) / `rank-boss`(soft red glow); enlarged intent pills; heavy-attack `.eintent.heavy`
+  3. Map atmosphere: `depth-near|mid|far|boss` layers; selectable-only accent frame+1px glow; emoji icons 1.35rem
+  - Also: `#app` 920px; window-area frame `#4a6d5c` inset glow; cards 4px type stripe / `#232636` / next soft green; primary btn flat `#3d5f82`; AP/MP tabular-nums; title letter-spacing 0.22em
+- Evaluation: **better** (readability / faction-danger-window hierarchy; no gameplay regression; smoke visual tokens green)
+- Decision: continue → Review3#1
+
+## Round 18
+- Target gap: Review3#1 — deck bloat drowning the window
+- What changed:
+  - Starter thinned to 11 (cut poke; denser focus/window); REWARD_POOL cut fillers (no bulk guard/heavy/store)
+  - Fat deck (≥14): reward offers **2** not 3 + skip tip; forced spend uses true MP_SPEND only (no generator-as-force)
+  - Shop remove cheaper when fat (16→12金 / 14→15金); teaching copy
+- Evaluation: **better**
+  - Evidence: smoke review3-anti-bloat offers=2 at deck20; starter length 11
+- Decision: continue → Review3#2
+
+## Round 19
+- Target gap: Review3#2 — 「読めた」rewards on the board
+- What changed:
+  - `#window-buffs` strip on player panel: 次攻撃+N / 余韻MP済|まだ / 読了ブロック+N / 窓：未読
+  - readAttackBonus / readBlockBonus / readMpGranted drive pills (not log-only)
+- Evaluation: **better**
+  - Evidence: smoke review3-read-board atk=2 mp=true; CSS `.wbuff.atk`
+- Decision: continue → Review3#3
+
+## Round 20
+- Target gap: Review3#3 — shift 割く toward MP + miss-tax feel
+- What changed:
+  - 決壊: AP2/MP2 → **AP1/MP2** (22 dmg) — MP is the scarce verb
+  - Mismatch on window-read: consolation 探りブロック+1 (AP dig less pure tax)
+  - EARLY_REWARD_MP lead with true spends (pierce/finisher/weaken/window) before channel
+- Evaluation: **better**
+  - Evidence: smoke finisherAp=1; consolBlock=1; early pool spend-first
+- Decision: continue
+
+## Round 21
+- Target gap: Shop economy (prices, remove teaching, avoid traps) + anti-bloat ally
+- What changed:
+  - Spend prices down (finisher/burst 48, pierce 36, channel 28, window tools ~30–34)
+  - Remove cost scales with deck thickness; shopkeeper lines teach delete-before-buy
+- Evaluation: **better**
+  - Evidence: smoke shop opens, wares=5; pierce not trap-priced when offered
+- Decision: continue
+
+## Round 22
+- Target gap: Mid-act pressure curve (knight/elite/boss) after longer paths + meditation
+- What changed:
+  - Knight HP40 + shell→14 spike; elite 66 + longer pattern; boss 98 + extra shell; elite variants +4 HP
+- Evaluation: **better**
+  - Evidence: smoke r18-midact-pressure; MP kits still required vs shells (prior elite sim logic holds; numbers up)
+- Still open: external Review4 on whether meditation makes elite too soft — watch next review
+- Decision: continue
+
+## Round 23
+- Target gap: Dual-enemy readability + cut dilution / event quality
+- What changed:
+  - Pack `rat_shade` (rat+shade_pup) on c3; dual rats HP/dmg up slightly; pack-fight header class
+  - Events: filler「離れる」removed; every choice hits MP/window/deck/gold meaningfully; 深読み rename
+  - Shop pool drops stance_off (dilution)
+- Evaluation: **better**
+  - Evidence: smoke pack spawn 2; r20-event-quality no leave fillers; SHOP without stance_off
+- Decision: continue → stabilize
+
+## Round 24
+- Target gap: Stabilize, docs, smoke, Review3 package notes (no Done claim)
+- What changed:
+  - Smoke covers R17–R23 + Review3 Top3 checks; CORE/README/LOOP_LOG synced (repo + workspace charter log)
+  - Ready for external Review4 on Review3 Top3 + 紬 visual
+- Evaluation: **better** (stability/docs) — smoke ALL GREEN
+- Still open for 25+:
+  - External re-review of Review3 Top3 (bloat / board-read / MP verb) on live Pages
+  - Fight1 true MP-spend density (siphon path vs spend card in combat 1)
+  - Whether fat-deck soft-cap needs hard remove prompt / rest auto-hint
+  - Optional juice only if Top3 stays green
+- Decision: pause for external review — **not Done** (min rounds goal 30+ continues after Review4)

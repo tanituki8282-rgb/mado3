@@ -34,6 +34,8 @@
             <li>戦闘中キー: 1/2/3 で手札、E でターン終了。</li>
             <li>意図アイコン: ⚔攻撃（⚠は重い） / 🛡防御 / ⬆強化。</li>
             <li>休憩の「気の欠片」は店に頼らずMP路線を保証する保険。</li>
+            <li>山が厚いと窓が死ぬ。報酬スキップと店の削除が核の守り。</li>
+            <li>「読めた」報酬（次攻撃+/余韻MP）はプレイヤー欄に表示される。</li>
           </ul>
         </div>
       </div>
@@ -66,6 +68,7 @@
             <div class="res-row"><span class="ap-pill">AP <strong id="p-ap">3</strong></span>
               <span class="mp-pill">MP <strong id="p-mp">0</strong></span></div>
             <div id="p-stance" class="stance"></div>
+            <div id="window-buffs" class="window-buffs"></div>
           </div>
           <div class="vs">VS</div>
           <div class="actor enemy-side">
@@ -104,7 +107,7 @@
       <div class="panel">
         <h2>戦闘報酬</h2>
         <p id="reward-gold"></p>
-        <p class="hint">カードを1枚クリックで獲得。不要ならスキップ（山を薄く保つ判断も有効）。</p>
+        <p class="hint">カードを1枚クリックで獲得。<strong>スキップ推奨</strong>の場面あり（山が厚いと『次』が死ぬ）。MP路線タグを優先。</p>
         <div id="reward-cards" class="card-row"></div>
         <button id="btn-skip-reward" class="btn">スキップ（カードを取らない）</button>
       </div>
@@ -134,7 +137,7 @@
         <p class="hint">購入、またはデッキから1枚削除（金が必要）。</p>
         <h3>売り物</h3>
         <div id="shop-wares" class="card-row"></div>
-        <h3 class="shop-remove-title">デッキ削除 <span class="hint">（20金・山が薄いほど「次」が読める）</span></h3>
+        <h3 class="shop-remove-title">デッキ削除 <span class="hint">（山が厚いほど安い・薄いほど「次」が読める）</span></h3>
         <div id="shop-remove" class="card-row"></div>
         <button id="btn-leave-shop" class="btn primary">店を出る</button>
         <div id="shop-log" class="log"></div>

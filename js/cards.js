@@ -1,4 +1,4 @@
-/** 窓3 card definitions — text only */
+/** 窓3 card definitions — text only (no card art) */
 const CARD_DEFS = {
   slash: {
     id: "slash", name: "斬撃", type: "attack",
@@ -15,11 +15,8 @@ const CARD_DEFS = {
   poke: {
     id: "poke", name: "突き", type: "attack",
     ap: 1, mp: 0,
-    text: "敵に 5 ダメージ。攻めの構え中は +3。",
-    effect: (g) => {
-      const bonus = g.player.stance === "offense" ? 3 : 0;
-      g.dealDamageToEnemy(5 + g.attackBonus() + bonus);
-    },
+    text: "敵に 5 ダメージ（構えの攻撃補正あり）。",
+    effect: (g) => g.dealDamageToEnemy(5 + g.attackBonus()),
   },
   guard: {
     id: "guard", name: "防御", type: "block",
@@ -39,10 +36,22 @@ const CARD_DEFS = {
     text: "MP を 1 得る。",
     effect: (g) => { g.player.mp += 1; g.log("MP +1"); },
   },
+  channel: {
+    id: "channel", name: "導気", type: "tech",
+    ap: 1, mp: 0,
+    text: "MP を 2 得る。APで蓄える技術。",
+    effect: (g) => { g.player.mp += 2; g.log("MP +2"); },
+  },
   redraw_next: {
     id: "redraw_next", name: "先読み破棄", type: "tech",
+    ap: 1, mp: 0,
+    text: "次を山に戻し、別の次を見る。窓の基本操作。",
+    effect: (g) => g.redrawNext(),
+  },
+  redraw_next_mp: {
+    id: "redraw_next_mp", name: "深読み破棄", type: "tech",
     ap: 0, mp: 1,
-    text: "次を山に戻し、別の次を見る。",
+    text: "次を山に戻し、別の次を見る（AP不要・MP1）。",
     effect: (g) => g.redrawNext(),
   },
   swap_window: {
@@ -51,11 +60,29 @@ const CARD_DEFS = {
     text: "次と手札の左端を入れ替える。",
     effect: (g) => g.swapNextWithHand(0),
   },
+  pierce: {
+    id: "pierce", name: "貫通", type: "attack",
+    ap: 1, mp: 1,
+    text: "敵に 9 ダメージ（ブロック無視）。殻に刺さる。",
+    effect: (g) => g.dealDamageToEnemy(9 + g.attackBonus(), { ignoreBlock: true }),
+  },
   finisher: {
     id: "finisher", name: "決壊", type: "attack",
     ap: 2, mp: 2,
-    text: "敵に 22 ダメージ。MPを要する決め手。",
-    effect: (g) => g.dealDamageToEnemy(22 + g.attackBonus()),
+    text: "敵に 24 ダメージ。MPを要する決め手。",
+    effect: (g) => g.dealDamageToEnemy(24 + g.attackBonus()),
+  },
+  burst: {
+    id: "burst", name: "気爆", type: "attack",
+    ap: 0, mp: 3,
+    text: "敵に 28 ダメージ。MPだけを燃やす決め手。",
+    effect: (g) => g.dealDamageToEnemy(28 + g.attackBonus()),
+  },
+  weaken: {
+    id: "weaken", name: "弱体の印", type: "tech",
+    ap: 1, mp: 1,
+    text: "敵に弱体2付与（攻撃ダメージ25%減）。",
+    effect: (g) => g.applyWeak(2),
   },
   stance_off: {
     id: "stance_off", name: "攻めの構え", type: "stance",
@@ -88,18 +115,22 @@ const CARD_DEFS = {
   focus: {
     id: "focus", name: "集中", type: "tech",
     ap: 0, mp: 0,
-    text: "このターン AP +1。",
-    effect: (g) => { g.player.ap += 1; g.log("AP +1"); },
+    text: "AP +1。代わりに次を引き直す（窓の代償）。",
+    effect: (g) => {
+      g.player.ap += 1;
+      g.log("AP +1");
+      g.redrawNext();
+    },
   },
 };
 
-/** Starter: attack×6, block×4, tech×2 ≈ 12 */
+/** Starter: attacks, blocks, MP path (siphon+store), next-tech */
 function makeStarterDeck() {
   const ids = [
-    "slash", "slash", "slash", "slash",
+    "slash", "slash", "slash",
     "heavy", "poke",
     "guard", "guard", "guard", "iron",
-    "store", "redraw_next",
+    "store", "siphon", "redraw_next",
   ];
   return ids.map((id, i) => makeCard(id, `s${i}`));
 }
@@ -118,30 +149,53 @@ function makeCard(defId, uid) {
   };
 }
 
-const SHOP_POOL = ["heavy", "iron", "finisher", "stance_off", "stance_def", "siphon", "swap_window", "focus", "poke"];
-const REWARD_POOL = ["slash", "heavy", "guard", "iron", "store", "poke", "siphon", "stance_off", "focus", "swap_window"];
+const SHOP_POOL = [
+  "heavy", "iron", "finisher", "burst", "pierce", "channel",
+  "stance_off", "stance_def", "siphon", "swap_window", "focus",
+  "poke", "weaken", "redraw_next", "redraw_next_mp",
+];
+const REWARD_POOL = [
+  "heavy", "guard", "iron", "store", "channel", "poke",
+  "siphon", "stance_off", "focus", "swap_window", "pierce", "weaken",
+  "finisher", "redraw_next_mp",
+];
+/** First combat reward: always include at least one MP-payoff option */
+const EARLY_REWARD_MP = ["channel", "pierce", "finisher", "siphon", "weaken", "swap_window"];
 
 const ENEMIES = {
   slime: {
-    id: "slime", name: "スライム", hp: 28,
+    id: "slime", name: "スライム", hp: 34, emoji: "🟢",
     pattern: [
-      { kind: "attack", value: 7, label: "攻撃 7" },
-      { kind: "attack", value: 5, label: "攻撃 5" },
-      { kind: "block", value: 6, label: "防御 6" },
+      { kind: "attack", value: 6, label: "攻撃 6" },
+      { kind: "attack", value: 12, label: "大殴り 12" },
+      { kind: "block", value: 8, label: "粘液の膜 8" },
+      { kind: "attack", value: 9, label: "攻撃 9" },
     ],
     gold: 18,
   },
   bat: {
-    id: "bat", name: "コウモリ", hp: 22,
+    id: "bat", name: "コウモリ", hp: 24, emoji: "🦇",
     pattern: [
       { kind: "attack", value: 9, label: "攻撃 9" },
-      { kind: "attack", value: 6, label: "攻撃 6" },
+      { kind: "attack", value: 7, label: "攻撃 7" },
       { kind: "buff", value: 2, label: "力+2（次攻撃強化）" },
     ],
-    gold: 20,
+    gold: 22,
+  },
+  /** AP-only slash spam is inefficient: heavy block shells */
+  shellbug: {
+    id: "shellbug", name: "殻虫", hp: 40, emoji: "🪲",
+    pattern: [
+      { kind: "block", value: 12, label: "殻張り 12" },
+      { kind: "attack", value: 10, label: "攻撃 10" },
+      { kind: "block", value: 14, label: "厚殻 14" },
+      { kind: "attack", value: 8, label: "攻撃 8" },
+      { kind: "buff", value: 2, label: "力+2" },
+    ],
+    gold: 28,
   },
   knight: {
-    id: "knight", name: "見習い騎士", hp: 36,
+    id: "knight", name: "見習い騎士", hp: 36, emoji: "🗡️",
     pattern: [
       { kind: "attack", value: 10, label: "攻撃 10" },
       { kind: "block", value: 8, label: "防御 8" },
@@ -150,24 +204,55 @@ const ENEMIES = {
     gold: 25,
   },
   elite: {
-    id: "elite", name: "窓守りの精鋭", hp: 55,
+    id: "elite", name: "窓守りの精鋭", hp: 62, emoji: "⚔️",
     pattern: [
+      { kind: "block", value: 14, label: "窓殻 14" },
       { kind: "attack", value: 14, label: "攻撃 14" },
       { kind: "block", value: 10, label: "防御 10" },
       { kind: "attack", value: 18, label: "強撃 18" },
       { kind: "buff", value: 3, label: "力+3" },
     ],
-    gold: 45,
+    gold: 50,
   },
   boss: {
-    id: "boss", name: "三窓の主", hp: 80,
+    id: "boss", name: "三窓の主", hp: 92, emoji: "👁️",
     pattern: [
+      { kind: "block", value: 12, label: "三窓の殻 12" },
       { kind: "attack", value: 16, label: "攻撃 16" },
-      { kind: "block", value: 12, label: "防御 12" },
+      { kind: "block", value: 10, label: "防御 10" },
       { kind: "attack", value: 22, label: "大破 22" },
       { kind: "buff", value: 4, label: "力+4" },
       { kind: "attack", value: 12, label: "連撃 12" },
     ],
     gold: 0,
+  },
+  rat: {
+    id: "rat", name: "窓ネズミ", hp: 14, emoji: "🐀",
+    pattern: [
+      { kind: "attack", value: 5, label: "噛みつき 5" },
+      { kind: "attack", value: 4, label: "かじる 4" },
+      { kind: "buff", value: 1, label: "力+1" },
+    ],
+    gold: 10,
+  },
+  shade: {
+    id: "shade", name: "影法師", hp: 30, emoji: "👤",
+    pattern: [
+      { kind: "attack", value: 8, label: "影打ち 8" },
+      { kind: "block", value: 7, label: "影の膜 7" },
+      { kind: "buff", value: 2, label: "力+2" },
+      { kind: "attack", value: 12, label: "切り込み 12" },
+    ],
+    gold: 26,
+  },
+};
+
+/** Multi-enemy light packs (2 weak). Key used as map enemy id. */
+const ENEMY_PACKS = {
+  dual_rats: {
+    id: "dual_rats",
+    name: "ネズミの群れ",
+    members: ["rat", "rat"],
+    gold: 22,
   },
 };

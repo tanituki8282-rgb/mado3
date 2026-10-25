@@ -18,8 +18,21 @@
       <div class="panel center">
         <h2>窓3 — ブラウザ文字プロト</h2>
         <p>手札は常に3。次の1枚が見える。捨て札なし。</p>
-        <p>1アクト：戦闘 → 分岐 → 休憩 → 店 → エリート → ボス</p>
+        <p>1アクト・分岐マップ：戦闘／出来事／休憩／店 → エリート → ボス</p>
         <button id="btn-start" class="btn primary">冒険を始める</button>
+        <button id="btn-help" class="btn">遊び方</button>
+        <div id="help-panel" class="help-panel hidden">
+          <h3>核ルール</h3>
+          <ul>
+            <li>手札は常に <strong>3</strong>。次の <strong>1</strong> 枚が見える。</li>
+            <li>捨て札なし。使ったカードは山に戻る。</li>
+            <li><span class="ap-pill">AP</span> は毎ターン回復。<span class="mp-pill">MP</span> は貯めた手数（回復しない）。</li>
+            <li>敵の防御は次のあなたのターンまで残る。殻には貫通や決め手が効く。</li>
+            <li>店の削除で山を薄くし、「次」の信頼を上げられる。</li>
+            <li>休憩の「窓瞑想」：HPと引き換えに次戦闘の初期MPと次の引き直し。</li>
+            <li>戦闘中キー: 1/2/3 で手札、E でターン終了。</li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -31,8 +44,8 @@
           <span>金 <strong id="map-gold">0</strong></span>
           <span>デッキ <strong id="map-decksize">12</strong>枚</span>
         </div>
-        <h2>マップ</h2>
-        <p class="hint">次のノードを選んでください。</p>
+        <h2>マップ <span class="hint">— 分岐は戻らない</span></h2>
+        <p class="hint">明るい枠が選択可。層が下へ進むほどボスに近い。</p>
         <div id="map-nodes" class="map-nodes"></div>
         <div id="map-log" class="log"></div>
       </div>
@@ -44,17 +57,24 @@
         <div class="combat-header">
           <div class="actor player">
             <div class="name">あなた</div>
-            <div>HP <strong id="p-hp">70</strong>/<span id="p-hpmax">70</span>
-              盾 <strong id="p-block">0</strong></div>
-            <div>AP <strong id="p-ap">3</strong>　MP <strong id="p-mp">0</strong></div>
+            <div class="hp-row">HP <strong id="p-hp">70</strong>/<span id="p-hpmax">70</span>
+              <span class="shield">🛡 <strong id="p-block">0</strong></span></div>
+            <div class="hp-bar"><div id="p-hpbar" class="hp-bar-fill player"></div></div>
+            <div class="res-row"><span class="ap-pill">AP <strong id="p-ap">3</strong></span>
+              <span class="mp-pill">MP <strong id="p-mp">0</strong></span></div>
             <div id="p-stance" class="stance"></div>
           </div>
           <div class="vs">VS</div>
-          <div class="actor enemy">
-            <div class="name" id="e-name">敵</div>
-            <div>HP <strong id="e-hp">40</strong>/<span id="e-hpmax">40</span>
-              盾 <strong id="e-block">0</strong></div>
-            <div class="intent">意図: <strong id="e-intent">？</strong></div>
+          <div class="actor enemy-side">
+            <div id="enemy-list" class="enemy-list"></div>
+            <!-- legacy ids for smoke / fallback -->
+            <div class="legacy-enemy hidden-vis">
+              <div class="name" id="e-name">敵</div>
+              <div>HP <strong id="e-hp">40</strong>/<span id="e-hpmax">40</span>
+                盾 <strong id="e-block">0</strong></div>
+              <div class="intent">意図: <strong id="e-intent">？</strong></div>
+              <div id="e-weak" class="weak-status"></div>
+            </div>
           </div>
         </div>
 
@@ -69,7 +89,8 @@
         </div>
 
         <div class="combat-actions">
-          <button id="btn-end-turn" class="btn">ターン終了</button>
+          <button id="btn-end-turn" class="btn">ターン終了 <span class="hint">(E)</span></button>
+          <span class="hint">手札: キー 1 / 2 / 3 で使用</span>
         </div>
         <div id="combat-log" class="log"></div>
       </div>
@@ -80,9 +101,9 @@
       <div class="panel">
         <h2>戦闘報酬</h2>
         <p id="reward-gold"></p>
-        <p class="hint">カードを1枚選ぶか、スキップ。</p>
+        <p class="hint">カードを1枚クリックで獲得。不要ならスキップ（山を薄く保つ判断も有効）。</p>
         <div id="reward-cards" class="card-row"></div>
-        <button id="btn-skip-reward" class="btn">スキップしてマップへ</button>
+        <button id="btn-skip-reward" class="btn">スキップ（カードを取らない）</button>
       </div>
     </section>
 
@@ -90,9 +111,10 @@
     <section id="screen-rest" class="screen hidden">
       <div class="panel center">
         <h2>休憩所</h2>
-        <p>HPを最大の30%回復するか、デッキから1枚削除できます。</p>
-        <button id="btn-rest-heal" class="btn primary">休む（回復）</button>
+        <p>回復、削除、または <strong>窓瞑想</strong>（HPを払い、次の戦闘でMPと先読みを得る）。</p>
+        <button id="btn-rest-heal" class="btn primary">休む（最大HPの30%回復）</button>
         <button id="btn-rest-remove" class="btn">カード削除</button>
+        <button id="btn-rest-meditate" class="btn">窓瞑想（HP -8 → 次戦闘 MP+2＆開始時に次を一度引き直し）</button>
         <div id="rest-remove-list" class="card-row hidden"></div>
       </div>
     </section>
@@ -108,7 +130,7 @@
         <p class="hint">購入、またはデッキから1枚削除（金が必要）。</p>
         <h3>売り物</h3>
         <div id="shop-wares" class="card-row"></div>
-        <h3>削除（25金）</h3>
+        <h3 class="shop-remove-title">デッキ削除 <span class="hint">（20金・山が薄いほど「次」が読める）</span></h3>
         <div id="shop-remove" class="card-row"></div>
         <button id="btn-leave-shop" class="btn primary">店を出る</button>
         <div id="shop-log" class="log"></div>
@@ -127,8 +149,9 @@
     <!-- END -->
     <section id="screen-end" class="screen hidden">
       <div class="panel center">
-        <h2 id="end-title">結果</h2>
-        <p id="end-body"></p>
+        <h2 id="end-title" class="end-title">結果</h2>
+        <p id="end-body" class="end-body"></p>
+        <p id="end-stats" class="hint"></p>
         <button id="btn-restart" class="btn primary">もう一度</button>
       </div>
     </section>

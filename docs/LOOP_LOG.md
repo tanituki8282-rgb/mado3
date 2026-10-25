@@ -557,3 +557,7 @@ Rounds 41–45 closed Review5 Top3 on per-turn elite/boss MP pressure, 膜裂き
 
 ### Review7 handoff（実装者メモ・レビュー待ち）
 Rounds 46–48 closed Review6 Top3 on kitaiEligible whitelist, escape next→hand, gift badge. Smoke green. **Not Done** — Review7 must confirmもう一回／核が遊べる／大きな穴なし before any ship claim.
+
+## Done (Review7)
+- 哀ちゃん: 完成OK
+- Commit: 7168089

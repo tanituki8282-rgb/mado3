@@ -43,9 +43,9 @@ const CARD_DEFS = {
     effect: (g) => { g.player.mp += 2; g.log("MP +2"); },
   },
   redraw_next: {
-    id: "redraw_next", name: "先読み破棄", type: "tech",
+    id: "redraw_next", name: "先読み", type: "tech",
     ap: 1, mp: 0,
-    text: "次を山に戻し、別の次を見る。窓の基本操作。",
+    text: "次を入れ替え、意図と合うなら報酬（ブロック+2／次攻撃+2）。窓を読む。",
     effect: (g) => g.redrawNext(),
   },
   redraw_next_mp: {
@@ -57,7 +57,7 @@ const CARD_DEFS = {
   swap_window: {
     id: "swap_window", name: "窓入替", type: "tech",
     ap: 0, mp: 1,
-    text: "次と手札の左端を入れ替える。",
+    text: "次と手札の左端を入れ替え、新しい次を読む（合いで報酬）。",
     effect: (g) => g.swapNextWithHand(0),
   },
   pierce: {
@@ -115,22 +115,40 @@ const CARD_DEFS = {
   focus: {
     id: "focus", name: "集中", type: "tech",
     ap: 0, mp: 0,
-    text: "AP +1。代わりに次を引き直す（窓の代償）。",
+    text: "AP +1。次を読む：合っていれば報酬、外れなら一度だけ引き直し。",
     effect: (g) => {
       g.player.ap += 1;
       g.log("AP +1");
-      g.redrawNext();
+      g.redrawNextIfMismatch();
     },
+  },
+  scry_deep: {
+    id: "scry_deep", name: "二度先読み", type: "tech",
+    ap: 0, mp: 2,
+    text: "次を2回入れ替える。MPを窓に全振りする。",
+    effect: (g) => { g.redrawNext(); g.redrawNext(); },
+  },
+  swap_pick: {
+    id: "swap_pick", name: "窓選替", type: "tech",
+    ap: 1, mp: 1,
+    text: "次と手札の好きな1枚を入れ替える（AP+MP）。",
+    effect: (g) => g.beginSwapPick(),
+  },
+  bury_next: {
+    id: "bury_next", name: "次を埋める", type: "tech",
+    ap: 1, mp: 1,
+    text: "次を山の底へ送り、別の次を見る。悪い次を捨てる。",
+    effect: (g) => g.buryNext(),
   },
 };
 
 /** Starter: attacks, blocks, MP path (siphon+store), next-tech */
 function makeStarterDeck() {
   const ids = [
-    "slash", "slash", "slash",
+    "slash", "slash",
     "heavy", "poke",
     "guard", "guard", "guard", "iron",
-    "store", "siphon", "redraw_next",
+    "store", "siphon", "redraw_next", "redraw_next",
   ];
   return ids.map((id, i) => makeCard(id, `s${i}`));
 }
@@ -151,25 +169,29 @@ function makeCard(defId, uid) {
 
 const SHOP_POOL = [
   "heavy", "iron", "finisher", "burst", "pierce", "channel",
-  "stance_off", "stance_def", "siphon", "swap_window", "focus",
-  "poke", "weaken", "redraw_next", "redraw_next_mp",
+  "stance_off", "siphon", "swap_window", "focus",
+  "weaken", "redraw_next", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
 ];
 const REWARD_POOL = [
-  "heavy", "guard", "iron", "store", "channel", "poke",
-  "siphon", "stance_off", "focus", "swap_window", "pierce", "weaken",
-  "finisher", "redraw_next_mp",
+  "heavy", "guard", "iron", "store", "channel",
+  "siphon", "focus", "swap_window", "pierce", "weaken",
+  "finisher", "redraw_next_mp", "scry_deep", "swap_pick", "bury_next",
+  "redraw_next",
 ];
 /** First combat reward: always include at least one MP-payoff option */
-const EARLY_REWARD_MP = ["channel", "pierce", "finisher", "siphon", "weaken", "swap_window"];
+const EARLY_REWARD_MP = ["channel", "pierce", "finisher", "siphon", "weaken", "swap_window", "swap_pick", "bury_next"];
+/** Guaranteed until deck owns a true MP-spend (not mere generators) */
+const SPEND_REWARD_POOL = ["pierce", "finisher", "weaken", "burst", "swap_window", "swap_pick", "bury_next", "redraw_next_mp", "scry_deep"];
 
 const ENEMIES = {
   slime: {
-    id: "slime", name: "スライム", hp: 34, emoji: "🟢",
+    id: "slime", name: "スライム", hp: 36, emoji: "🟢",
     pattern: [
-      { kind: "attack", value: 6, label: "攻撃 6" },
-      { kind: "attack", value: 12, label: "大殴り 12" },
-      { kind: "block", value: 8, label: "粘液の膜 8" },
-      { kind: "attack", value: 9, label: "攻撃 9" },
+      { kind: "block", value: 10, label: "粘液の膜 10" },
+      { kind: "attack", value: 15, label: "大殴り 15" },
+      { kind: "attack", value: 7, label: "攻撃 7" },
+      { kind: "block", value: 8, label: "膜再生 8" },
+      { kind: "attack", value: 11, label: "強撃 11" },
     ],
     gold: 18,
   },
@@ -214,6 +236,43 @@ const ENEMIES = {
     ],
     gold: 50,
   },
+  /** Alternate elites — same map node may roll these */
+  elite_wraith: {
+    id: "elite_wraith", name: "霧の精鋭", hp: 54, emoji: "👻",
+    pattern: [
+      { kind: "attack", value: 11, label: "霧打ち 11" },
+      { kind: "buff", value: 2, label: "力+2" },
+      { kind: "attack", value: 15, label: "霧切り 15" },
+      { kind: "block", value: 8, label: "霧膜 8" },
+      { kind: "attack", value: 13, label: "連霧 13" },
+    ],
+    gold: 50,
+    mod: "fog",
+  },
+  elite_breaker: {
+    id: "elite_breaker", name: "殻砕きの精鋭", hp: 58, emoji: "🪨",
+    pattern: [
+      { kind: "block", value: 16, label: "岩殻 16" },
+      { kind: "attack", value: 12, label: "攻撃 12" },
+      { kind: "block", value: 18, label: "大岩殻 18" },
+      { kind: "attack", value: 16, label: "強撃 16" },
+      { kind: "buff", value: 2, label: "力+2" },
+    ],
+    gold: 52,
+    mod: "thick",
+  },
+  elite_drain: {
+    id: "elite_drain", name: "気奪いの精鋭", hp: 56, emoji: "🟣",
+    pattern: [
+      { kind: "attack", value: 10, label: "気奪い 10" },
+      { kind: "block", value: 9, label: "防御 9" },
+      { kind: "attack", value: 14, label: "強気奪い 14" },
+      { kind: "buff", value: 2, label: "力+2" },
+      { kind: "attack", value: 12, label: "攻撃 12" },
+    ],
+    gold: 50,
+    mod: "drain",
+  },
   boss: {
     id: "boss", name: "三窓の主", hp: 92, emoji: "👁️",
     pattern: [
@@ -248,6 +307,8 @@ const ENEMIES = {
 };
 
 /** Multi-enemy light packs (2 weak). Key used as map enemy id. */
+const ELITE_POOL = ["elite", "elite_wraith", "elite_breaker", "elite_drain"];
+
 const ENEMY_PACKS = {
   dual_rats: {
     id: "dual_rats",

@@ -98,3 +98,92 @@ Charter: LOOP_CHARTER.md — max 60 rounds. This log starts at Round 1.
 - Still open (for rounds 9+):
   - More next-manipulation suite depth; elite modifiers; relics-lite?; juice/animations; second act decision later; AI/fun-review pass on full run feel; remove-from-deck mid-run tutorial moments
 - Decision: continue (rounds 1–8 task complete; hand off for 9+)
+
+## Round 8.5 / Review2（哀ちゃん再レビュー・HEAD caa9344）
+- External re-review of post-R8 build. Enemy block = mostly done — do not reopen unless regression.
+- **New Top3** (highest first):
+  1. Fight 1 must make「割く」hard to avoid — pure attack/block still clears; fights too long/soft; slash spam survives. Fix first-combat pressure/design so window+AP/MP choice appears early.
+  2. MP payoff must not depend on shop RNG — guarantee mid-run ≥1 store→spend (finisher/window) without shop luck.
+  3. Window-card feel: 先読み破棄 still feels dead; reshape discard/swap/focus toward *reading* the window, not tax/junk.
+- Summary: core still mid-heavy; remaining is first-fight split, MP whiff, window cards as annoyance.
+- North star for R9+: these three before other polish (elite variety / juice / help chrome are secondary).
+- Decision: continue — reprioritize remaining rounds at Top3; keep R1–8 gains; do not claim Done.
+
+## Round 9
+- Target gap: (pre-Review2 plan) Next-manipulation suite depth — kept as partial Top3#3 adjacent
+- What changed:
+  - Cards: `二度先読み`(AP0/MP2)、`窓選替`(AP1/MP1 pick-swap)、`次を埋める`(AP1/MP1 bury)
+  - playCard pauses for 窓選替 pick; shop/reward pools include them
+- Evaluation: **better** on window-tool count / AP↔MP cost menu; **same** on Review2 Top3#3 (先読み破棄/集中 still unreshaped) and no touch on fight1 / MP guarantee
+- Still open: Top3#1 fight1 soft; Top3#2 shop-gated MP; Top3#3 reshape existing window cards
+- Decision: continue — next rounds lock to Review2 Top3
+
+## Round 10
+- Target gap: (pre-Review2) Elite modifiers/variety — secondary to Top3; already in flight so landed, not expanded further
+- What changed:
+  - ELITE_POOL: elite / 霧の精鋭(fog) / 殻砕き(thick) / 気奪い(drain)
+  - Mods: fog redraws open next; thick +10 block; drain steals MP on hit
+- Evaluation: **better** for elite variety; **same** vs Review2 Top3 (does not fix fight1/MP guarantee/window feel)
+- Decision: continue → R11 Top3#1 fight1 pressure (method: north star = Review2 Top3)
+
+## Round 11
+- Target gap: Review2 Top3#1 — fight1 soft; slash spam clears; 「割く」avoidable
+- What changed:
+  - スライム: open 膜10 → 大殴り15 → … HP36; starter slash 3→2, redraw_next×2
+  - Fight1 hint log
+- Evaluation: **better**
+  - Evidence: headless 24 runs — slash-only 0/24; block-no-window 3/24; window-read policy 18/24 (avgHP~19)
+  - Pure attack/block no longer clears; window dig before big hit is the split
+- Decision: continue → Top3#2
+
+## Round 12
+- Target gap: Review2 Top3#2 — MP payoff shop-RNG gated
+- What changed:
+  - `MP_SPEND_IDS` / `SPEND_REWARD_POOL`; rewards keep offering a true spend until deck owns one
+  - Rest「気の欠片」free spend card when still missing (shop not required)
+  - Reward tip +「MP路線」tag
+- Evaluation: **better**
+  - Evidence: smoke — mid-run reward includes spend (e.g. pierce/finisher/weaken) after siphon-only; rest gift completes path
+- Decision: continue → Top3#3
+
+## Round 13
+- Target gap: Review2 Top3#3 — 先読み破棄/集中 feel like tax/junk
+- What changed:
+  - Rename 先読み破棄→先読み; redraw/swap/focus call `readWindowFeedback` (match → block+2 or next-atk+2)
+  - 集中: AP+1; keep next if match (reward), else redraw once
+  - Help line on reading the window
+- Evaluation: **better**
+  - Evidence: smoke focus-keep-on-match (+2 block); redraw into guard grants +2; cards text teach reading not discard-tax
+- Decision: continue
+
+## Round 14
+- Target gap: Amplify core / cut dilution (post-Top3)
+- What changed:
+  - First successful「読めた」each combat also MP+1（窓の余韻）
+  - Cut poke + stance_def from reward/shop pools (less noise vs window/MP toys)
+- Evaluation: **better**
+  - Evidence: smoke first read MP1, second read no double; pools cleaned
+- Decision: continue
+
+## Round 15
+- Target gap: Playability — intent readability + defeat clarity + light juice
+- What changed:
+  - Intent icons ⚔/🛡/⬆ + ⚠ on heavy attacks
+  - Defeat body cites last intent; tip points to window/MP/reward path
+  - hurt-flash CSS; end juice classes; help/map tips
+- Evaluation: **better** (readability/feedback; not a balance delta)
+  - Evidence: smoke slime open intent has 🛡; end meta tip wired
+- Decision: continue → stabilize
+
+## Round 16
+- Target gap: Stabilize + smoke + docs; prepare external re-review (no Done claim)
+- What changed:
+  - Smoke covers R9–R15; CORE.md updated for read-rewards + spend guarantee
+  - LOOP_LOG synced; ready for 哀ちゃん Review3 on Top3
+- Evaluation: **better** (stability/docs) — smoke ALL GREEN
+- Still open for 17+:
+  - External re-review of Top3 (fight1/MP guarantee/window feel) on live Pages
+  - Second-pass numbers if Review3 finds soft/hard edges after meditation+longer paths
+  - Optional further elite/juice only if Top3 stays green
+- Decision: pause for external review — **not Done**
+

@@ -26,11 +26,14 @@
           <ul>
             <li>手札は常に <strong>3</strong>。次の <strong>1</strong> 枚が見える。</li>
             <li>捨て札なし。使ったカードは山に戻る。</li>
+            <li>「先読み」「集中」「窓入替」は次を<em>読む</em>：敵意図と合うとブロック/+攻撃。</li>
             <li><span class="ap-pill">AP</span> は毎ターン回復。<span class="mp-pill">MP</span> は貯めた手数（回復しない）。</li>
             <li>敵の防御は次のあなたのターンまで残る。殻には貫通や決め手が効く。</li>
             <li>店の削除で山を薄くし、「次」の信頼を上げられる。</li>
             <li>休憩の「窓瞑想」：HPと引き換えに次戦闘の初期MPと次の引き直し。</li>
             <li>戦闘中キー: 1/2/3 で手札、E でターン終了。</li>
+            <li>意図アイコン: ⚔攻撃（⚠は重い） / 🛡防御 / ⬆強化。</li>
+            <li>休憩の「気の欠片」は店に頼らずMP路線を保証する保険。</li>
           </ul>
         </div>
       </div>
@@ -45,7 +48,7 @@
           <span>デッキ <strong id="map-decksize">12</strong>枚</span>
         </div>
         <h2>マップ <span class="hint">— 分岐は戻らない</span></h2>
-        <p class="hint">明るい枠が選択可。層が下へ進むほどボスに近い。</p>
+        <p class="hint map-tip">明るい枠が選択可。層が下へ進むほどボスに近い。初戦は膜→大殴りを窓で読め。</p>
         <div id="map-nodes" class="map-nodes"></div>
         <div id="map-log" class="log"></div>
       </div>
@@ -115,6 +118,7 @@
         <button id="btn-rest-heal" class="btn primary">休む（最大HPの30%回復）</button>
         <button id="btn-rest-remove" class="btn">カード削除</button>
         <button id="btn-rest-meditate" class="btn">窓瞑想（HP -8 → 次戦闘 MP+2＆開始時に次を一度引き直し）</button>
+        <button id="btn-rest-gift" class="btn primary hidden">気の欠片を受け取る（無料でMP路線カード1枚・店不要）</button>
         <div id="rest-remove-list" class="card-row hidden"></div>
       </div>
     </section>

@@ -126,6 +126,33 @@
     };
   }
 
+  function flashHurt() {
+    const panel = document.querySelector && document.querySelector("#screen-combat .actor.player");
+    if (!panel || !panel.classList) return;
+    panel.classList.remove("hurt-flash");
+    void panel.offsetWidth;
+    panel.classList.add("hurt-flash");
+  }
+
+  function applyEliteMod(mod) {
+    const c = state.combat;
+    if (!c) return;
+    if (mod === "thick") {
+      c.enemies.forEach((e) => { if (e.hp > 0) e.block += 10; });
+      logCombat("厚殻：敵の初期ブロック +10");
+    } else if (mod === "fog") {
+      // Force a free redraw of next — window is unreliable at open
+      if (c.next) {
+        api.redrawNext({ noRead: true });
+        if (c.windowResonance > 0) c.windowResonance -= 1;
+      }
+      logCombat("窓曇り：開幕の次が霞んだ");
+    } else if (mod === "drain") {
+      c.drainMpOnHit = true;
+      logCombat("気奪い：攻撃を受けると MP -1");
+    }
+  }
+
   function startCombat(enemyId) {
     const pack = (typeof ENEMY_PACKS !== "undefined" && ENEMY_PACKS[enemyId]) || null;
     let enemies;
@@ -151,6 +178,7 @@
     for (let i = 0; i < HAND_SIZE && pile.length; i++) hand.push(pile.pop());
     const next = pile.length ? pile.pop() : null;
 
+    state.pendingSwapSelect = false;
     state.combat = {
       enemies,
       targetIndex: 0,
@@ -170,20 +198,44 @@
       pile,
       over: false,
       isBoss: enemyId === "boss",
+      windowResonance: 0,
+      eliteMod: null,
     };
     // Ensure target is living
     retargetIfNeeded();
     $("combat-log").innerHTML = "";
     setAllIntents();
+    // Elite modifiers
+    const primaryDef = pack ? null : ENEMIES[enemyId];
+    const mod = (primaryDef && primaryDef.mod) || null;
+    if (mod) {
+      state.combat.eliteMod = mod;
+      applyEliteMod(mod);
+    } else if (enemyId === "elite") {
+      // base elite: random light mod for variety
+      const mods = ["thick", "drain", null];
+      const m = mods[Math.floor(Math.random() * mods.length)];
+      if (m) {
+        state.combat.eliteMod = m;
+        applyEliteMod(m);
+      }
+    }
     show("combat");
     renderCombat();
     logCombat(packName + " が現れた！", true);
+    if (state.combat.eliteMod) {
+      const labels = { fog: "特性：窓曇り（開始時に次を強制引き直し）", drain: "特性：気奪い（攻撃がMPを1奪う）", thick: "特性：厚殻（開始時に追加ブロック）" };
+      logCombat(labels[state.combat.eliteMod] || ("特性：" + state.combat.eliteMod), true);
+    }
     logCombat("ヒント: 次を見て、今切るか蓄気（MP）するか。大攻撃の前は防御を窓から引き込め。");
+    if (enemyId === "slime") {
+      logCombat("初戦: 膜のターンは斬撃が弱い。大殴りの前は「次」が防御か、先読み破棄で掘れ。", true);
+    }
     if (enemies.length > 1) logCombat("複数体：カードは選択中の敵へ。クリックでターゲット変更。");
     if (state.flags && state.flags.meditate) {
       if (state.combat.player.mp > 0) logCombat("窓瞑想の余波：初期 MP " + state.combat.player.mp, true);
       if (state.flags.meditate.redrawNext) {
-        api.redrawNext();
+        api.redrawNext({ noRead: true });
         logCombat("窓瞑想：戦闘開始の次を引き直した", true);
       }
       state.flags.meditate = null; // consume
@@ -209,7 +261,12 @@
     if (step.kind === "attack") {
       let dmg = step.value + e.strength;
       if (e.weak > 0) dmg = Math.floor(dmg * 0.75);
-      e.intent.label = "攻撃 " + dmg + (e.weak > 0 ? "（弱体）" : "");
+      const big = dmg >= 14 ? "⚠" : "";
+      e.intent.label = "⚔ " + big + "攻撃 " + dmg + (e.weak > 0 ? "（弱体）" : "");
+    } else if (step.kind === "block") {
+      e.intent.label = "🛡 " + (step.label || ("防御 " + step.value));
+    } else if (step.kind === "buff") {
+      e.intent.label = "⬆ " + (step.label || ("強化 " + step.value));
     }
   }
 
@@ -226,18 +283,68 @@
     return state.combat.player.stance === "defense" ? 2 : 0;
   }
 
+
+  function enemyIntentNeeds() {
+    const e = state.combat && state.combat.enemy;
+    if (!e || !e.intent) return null;
+    if (e.intent.kind === "attack") return "block";
+    if (e.intent.kind === "block") return "attack";
+    if (e.block >= 8) return "attack";
+    return null;
+  }
+
+  function cardFillsNeed(card, need) {
+    if (!card || !need) return false;
+    if (need === "block") return card.type === "block" || card.defId === "guard" || card.defId === "iron";
+    if (need === "attack") return card.type === "attack" || card.defId === "pierce" || card.defId === "finisher" || card.defId === "burst";
+    return false;
+  }
+
+  function readWindowFeedback(card, source) {
+    const need = enemyIntentNeeds();
+    if (!card) { logCombat(source + "：次なし"); return false; }
+    if (!need) {
+      logCombat(source + "：次は『" + card.name + "』（意図と中立）");
+      return false;
+    }
+    const ok = cardFillsNeed(card, need);
+    if (ok) {
+      if (need === "block") {
+        state.combat.player.block += 2;
+        logCombat(source + "：読めた！ 次『" + card.name + "』は大攻撃に合う → ブロック+2", true);
+      } else {
+        state.combat.readAttackBonus = (state.combat.readAttackBonus || 0) + 2;
+        logCombat(source + "：読めた！ 次『" + card.name + "』は殻向き → 次の攻撃+2", true);
+      }
+      // Core amplify (R14): first clean read each combat also stores MP
+      if (!state.combat.readMpGranted) {
+        state.combat.player.mp += 1;
+        state.combat.readMpGranted = true;
+        logCombat("窓の余韻：MP +1（この戦闘で最初の「読めた」）", true);
+      }
+      return true;
+    }
+    logCombat(source + "：次『" + card.name + "』は今の意図と不一致");
+    return false;
+  }
+
   const api = {
     dealDamageToEnemy(n, opts) {
       opts = opts || {};
       const e = state.combat.enemy;
       let dmg = n;
       let note = "";
+      if (state.combat.readAttackBonus) {
+        dmg += state.combat.readAttackBonus;
+        note += "（読み+" + state.combat.readAttackBonus + "）";
+        state.combat.readAttackBonus = 0;
+      }
       if (!opts.ignoreBlock && e.block > 0) {
         const soaked = Math.min(e.block, dmg);
         e.block -= soaked;
         dmg -= soaked;
       } else if (opts.ignoreBlock) {
-        note = "（貫通）";
+        note += "（貫通）";
       }
       e.hp = Math.max(0, e.hp - dmg);
       logCombat(e.name + " に " + dmg + " ダメージ" + note + (e.hp <= 0 ? " — 撃破！" : ""));
@@ -252,13 +359,16 @@
       state.combat.player.block += n;
       logCombat("ブロック +" + n);
     },
-    redrawNext() {
+    redrawNext(opts) {
+      opts = opts || {};
       const c = state.combat;
       if (!c.next) { logCombat("次がない"); return; }
       c.pile.push(c.next);
       shuffle(c.pile);
       c.next = c.pile.length ? c.pile.pop() : null;
-      logCombat("次を入れ替えた");
+      if (!opts.noRead) readWindowFeedback(c.next, "先読み");
+      else logCombat("次を入れ替えた");
+      if (c.windowResonance != null) c.windowResonance += 1;
     },
     swapNextWithHand(index) {
       const c = state.combat;
@@ -266,9 +376,41 @@
       const tmp = c.hand[index];
       c.hand[index] = c.next;
       c.next = tmp;
-      logCombat("次と手札を入れ替えた");
+      logCombat("次と手札を入れ替えた → 手札に『" + c.hand[index].name + "』、次は『" + c.next.name + "』");
+      readWindowFeedback(c.next, "窓入替");
+      if (c.windowResonance != null) c.windowResonance += 1;
+    },
+    beginSwapPick() {
+      const c = state.combat;
+      if (!c.next || !c.hand.length) { logCombat("入れ替えできない"); return; }
+      state.pendingSwapSelect = true;
+      logCombat("入れ替える手札をクリック", true);
+      renderCombat();
+    },
+    buryNext() {
+      const c = state.combat;
+      if (!c.next) { logCombat("次がない"); return; }
+      // send next to bottom of pile, draw new next
+      c.pile.unshift(c.next);
+      c.next = c.pile.length ? c.pile.pop() : null;
+      logCombat("次を山の底へ埋めた");
+      if (c.windowResonance != null) c.windowResonance += 1;
     },
     log: logCombat,
+    readWindowFeedback,
+    enemyIntentNeeds,
+    _nextCard() { return state.combat && state.combat.next; },
+    redrawNextIfMismatch() {
+      const need = enemyIntentNeeds();
+      const n = state.combat && state.combat.next;
+      if (!n) { logCombat("集中：次なし"); return; }
+      if (need && cardFillsNeed(n, need)) {
+        readWindowFeedback(n, "集中");
+      } else {
+        logCombat("集中：次が合わないので引き直し");
+        this.redrawNext();
+      }
+    },
     attackBonus,
     blockBonus,
     get player() { return state.combat.player; },
@@ -303,26 +445,51 @@
     // Return played card to pile
     c.pile.push(card);
 
+    // 窓選替: pause until player picks a hand card to swap with next
+    if (state.pendingSwapSelect) {
+      checkCombatEnd();
+      renderCombat();
+      return;
+    }
+
+    finishPlayRefill();
+  }
+
+  function finishPlayRefill() {
+    const c = state.combat;
+    if (!c || c.over) return;
     // Visible next enters hand
     if (c.next) {
       c.hand.push(c.next);
       c.next = null;
     }
-
-    // Refill hand to 3 from pile if short (safety; normally next fills one slot)
     while (c.hand.length < HAND_SIZE && c.pile.length > 0) {
       shuffle(c.pile);
       c.hand.push(c.pile.pop());
     }
-
-    // New next from shuffled pile
-    if (c.pile.length > 0) {
+    if (!c.next && c.pile.length > 0) {
       shuffle(c.pile);
       c.next = c.pile.pop();
-    } else {
-      c.next = null;
     }
+    checkCombatEnd();
+    renderCombat();
+  }
 
+  function completeSwapPick(handIndex) {
+    if (!state.pendingSwapSelect || !state.combat) return;
+    api.swapNextWithHand(handIndex);
+    state.pendingSwapSelect = false;
+    logCombat("窓選替完了", true);
+    // After pick: refill without forcing the (new) next into hand — keep window readable
+    const c = state.combat;
+    while (c.hand.length < HAND_SIZE && c.pile.length > 0) {
+      shuffle(c.pile);
+      c.hand.push(c.pile.pop());
+    }
+    if (!c.next && c.pile.length > 0) {
+      shuffle(c.pile);
+      c.next = c.pile.pop();
+    }
     checkCombatEnd();
     renderCombat();
   }
@@ -347,6 +514,11 @@
       if (dmg > 0) {
         p.hp = Math.max(0, p.hp - dmg);
         logCombat(e.name + " の攻撃！ " + dmg + " ダメージ", true);
+        flashHurt();
+        if (state.combat.drainMpOnHit && p.mp > 0) {
+          p.mp -= 1;
+          logCombat("気奪い！ MP -1（残り " + p.mp + "）", true);
+        }
       } else {
         logCombat(e.name + " の攻撃を完全に防いだ");
       }
@@ -395,7 +567,10 @@
       c.over = true;
       state.player.hp = c.player.hp;
       if (c.isBoss) {
-        showEnd(true, "三窓の主を打ち破った。窓の先は、まだ見えない。");
+        showEnd(true, "三窓の主を打ち破った。窓の先は、まだ見えない。", {
+          cause: "boss",
+          tip: "先読みとMPの割り振りが通った。",
+        });
       } else {
         offerReward(c.encounterGold || 0);
       }
@@ -404,7 +579,12 @@
     if (c.player.hp <= 0) {
       c.over = true;
       state.player.hp = 0;
-      showEnd(false, "HPが尽きた。窓は閉じた。");
+      const killer = c.enemies.find((e) => e.intent && e.intent.kind === "attack") || c.enemy;
+      const intent = killer && killer.intent ? killer.intent.label : "攻撃";
+      showEnd(false, "HPが尽きた。最後の意図は「" + intent + "」。", {
+        cause: "hp0",
+        tip: "大攻撃の前に次を読め。膜のターンは蓄気／先読み。店に頼らず報酬のMP路線を拾え。",
+      });
       return true;
     }
     return false;
@@ -466,10 +646,16 @@
     const handEl = $("hand");
     handEl.innerHTML = "";
     c.hand.forEach((card, i) => {
-      handEl.appendChild(renderCardEl(card, {
-        disabled: !canPlay(card),
-        onClick: () => playCard(i),
-      }));
+      if (state.pendingSwapSelect) {
+        handEl.appendChild(renderCardEl(card, {
+          onClick: () => completeSwapPick(i),
+        }));
+      } else {
+        handEl.appendChild(renderCardEl(card, {
+          disabled: !canPlay(card),
+          onClick: () => playCard(i),
+        }));
+      }
     });
 
     const nextEl = $("next-card");
@@ -487,26 +673,41 @@
   }
 
   // ——— Rewards ———
+  /** Cards that complete store→spend (MP sinks / strong window spends) */
+  const MP_SPEND_IDS = ["finisher", "burst", "pierce", "weaken", "scry_deep", "swap_pick", "bury_next", "redraw_next_mp", "swap_window"];
+
+  function deckHasMpSpend() {
+    return state.player.deck.some((c) => MP_SPEND_IDS.includes(c.defId));
+  }
+
   function offerReward(gold) {
     state.player.gold += gold;
-    // First combat: guarantee ≥1 MP-payoff so store→finisher path appears before elite
+    // Guarantee ≥1 MP-payoff until the run owns a store→spend piece (not shop-gated)
     let ids;
     if (!state.flags) state.flags = {};
-    if (!state.flags.firstRewardDone && typeof EARLY_REWARD_MP !== "undefined") {
-      const mpPick = pickRandom(EARLY_REWARD_MP, 1)[0];
+    const needSpend = !deckHasMpSpend();
+    const spendPool = (typeof SPEND_REWARD_POOL !== "undefined" && SPEND_REWARD_POOL.length)
+      ? SPEND_REWARD_POOL : (typeof EARLY_REWARD_MP !== "undefined" ? EARLY_REWARD_MP : ["pierce", "finisher"]);
+    if (needSpend) {
+      // First reward can still mix generators; after that, force a true spend option
+      const forcePool = state.flags.firstRewardDone ? spendPool : (typeof EARLY_REWARD_MP !== "undefined" ? EARLY_REWARD_MP : spendPool);
+      const mpPick = pickRandom(forcePool, 1)[0];
       const restPool = REWARD_POOL.filter((id) => id !== mpPick);
       ids = [mpPick].concat(pickRandom(restPool, 2));
       shuffle(ids);
       state.flags.firstRewardDone = true;
+      state.flags.mpPayoffGuaranteed = true;
     } else {
       ids = pickRandom(REWARD_POOL, 3);
     }
     const picks = ids.map((id, i) => makeCard(id, "rw" + Date.now() + i));
     state.reward = picks;
-    $("reward-gold").textContent = "金 +" + gold + "（所持 " + state.player.gold + "）";
+    const tip = needSpend ? "　※まだMPの使い道が薄い — 導気／貫通／窓札を検討" : "";
+    $("reward-gold").textContent = "金 +" + gold + "（所持 " + state.player.gold + "）" + tip;
     const box = $("reward-cards");
     box.innerHTML = "";
     picks.forEach((card) => {
+      const isSpend = MP_SPEND_IDS.includes(card.defId);
       box.appendChild(renderCardEl(card, {
         onClick: () => {
           state.player.deck.push(card);
@@ -514,6 +715,13 @@
           goMap();
         },
       }));
+      // tag spend options in DOM via price-like hint
+      if (isSpend && needSpend && box.lastChild) {
+        const tag = document.createElement("div");
+        tag.className = "price";
+        tag.textContent = "MP路線";
+        box.lastChild.appendChild(tag);
+      }
     });
     show("reward");
   }
@@ -570,7 +778,11 @@
     state.available = node.next.slice();
     state.mapPos = node.id;
     if (node.type === "combat" || node.type === "elite" || node.type === "boss") {
-      startCombat(node.enemy);
+      let enemyId = node.enemy;
+      if (node.type === "elite" && typeof ELITE_POOL !== "undefined" && ELITE_POOL.length) {
+        enemyId = ELITE_POOL[Math.floor(Math.random() * ELITE_POOL.length)];
+      }
+      startCombat(enemyId);
     } else if (node.type === "rest") {
       openRest();
     } else if (node.type === "shop") {
@@ -584,7 +796,23 @@
   function openRest() {
     $("rest-remove-list").classList.add("hidden");
     $("rest-remove-list").innerHTML = "";
+    const gift = $("btn-rest-gift");
+    if (gift) {
+      const showGift = !deckHasMpSpend();
+      gift.classList.toggle("hidden", !showGift);
+      gift.disabled = !showGift;
+    }
     show("rest");
+  }
+
+  function restGiftMp() {
+    // Guaranteed mid-run store→spend without shop: pick channel or pierce or finisher
+    const picks = ["pierce", "finisher", "redraw_next_mp", "swap_window", "weaken"];
+    const id = picks[Math.floor(Math.random() * picks.length)];
+    state.player.deck.push(makeCard(id, "gift" + Date.now()));
+    if (!state.flags) state.flags = {};
+    state.flags.restGiftTaken = true;
+    goMap();
   }
 
   function restHeal() {
@@ -636,6 +864,8 @@
     if (card.defId === "finisher" || card.defId === "burst") return 55;
     if (card.defId === "pierce" || card.defId === "weaken") return 42;
     if (card.defId === "channel") return 34;
+    if (card.defId === "scry_deep") return 36;
+    if (card.defId === "swap_pick" || card.defId === "bury_next") return 38;
     if (card.defId === "redraw_next_mp") return 32;
     if (card.type === "stance") return 40;
     if (card.type === "tech") return 35;
@@ -855,16 +1085,23 @@
     });
   }
 
-  function showEnd(won, body) {
+  function showEnd(won, body, meta) {
+    meta = meta || {};
     const title = $("end-title");
     title.textContent = won ? "勝利" : "敗北";
     title.className = "end-title " + (won ? "win" : "lose");
     $("end-body").textContent = body;
     const stats = $("end-stats");
     if (stats && state.player) {
+      const tip = meta.tip || (won ? "もう一回、別ルートで窓を試せる。" : "次は蓄気と窓操作を早めに。");
       stats.textContent = "HP " + state.player.hp + "/" + state.player.hpMax +
         "　金 " + state.player.gold + "　デッキ " + state.player.deck.length + "枚" +
-        (won ? "" : "　— 次は蓄気と窓操作を早めに。");
+        "　— " + tip;
+    }
+    const endPanel = $("screen-end");
+    if (endPanel) {
+      endPanel.classList.remove("juice-win", "juice-lose");
+      endPanel.classList.add(won ? "juice-win" : "juice-lose");
     }
     show("end");
   }
@@ -878,6 +1115,8 @@
     $("btn-rest-remove").addEventListener("click", restRemoveMode);
     const med = $("btn-rest-meditate");
     if (med) med.addEventListener("click", restMeditate);
+    const gift = $("btn-rest-gift");
+    if (gift) gift.addEventListener("click", restGiftMp);
     $("btn-leave-shop").addEventListener("click", goMap);
     $("btn-restart").addEventListener("click", () => show("title"));
     const helpBtn = $("btn-help");
@@ -915,7 +1154,10 @@
     BASE_AP,
     MAP,
     EVENT_DEFS,
+    ELITE_POOL: typeof ELITE_POOL !== "undefined" ? ELITE_POOL : ["elite"],
     openEvent,
+    deckHasMpSpend,
+    MP_SPEND_IDS,
     api,
     _forceCombat(enemyId) {
       if (!state.player) startRun();

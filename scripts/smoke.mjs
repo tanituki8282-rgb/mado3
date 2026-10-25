@@ -46,7 +46,7 @@ function el(id) {
 [
   "screen-title","screen-map","screen-combat","screen-reward","screen-rest",
   "screen-shop","screen-event","screen-end",
-  "btn-start","btn-end-turn","btn-skip-reward","btn-rest-heal","btn-rest-remove","btn-rest-meditate",
+  "btn-start","btn-end-turn","btn-skip-reward","btn-rest-heal","btn-rest-remove","btn-rest-meditate","btn-rest-gift",
   "btn-leave-shop","btn-restart",
   "map-hp","map-hpmax","map-gold","map-decksize","map-nodes","map-log",
   "p-hp","p-hpmax","p-block","p-ap","p-mp","p-stance",
@@ -157,7 +157,8 @@ if (typeof M._forceCombat === "function") {
 const starter = makeStarterDeck();
 const ids = starter.map((c) => c.defId);
 if (!ids.includes("siphon") || !ids.includes("store")) fail("starter missing MP path", ids);
-if (ids.filter((x) => x === "slash").length > 3) fail("too many slash in starter", ids);
+if (ids.filter((x) => x === "slash").length > 2) fail("too many slash in starter", ids);
+if (ids.filter((x) => x === "redraw_next").length < 2) fail("starter should densify window tool", ids);
 console.log("SMOKE OK starter-mp-path", ids);
 
 
@@ -176,10 +177,25 @@ console.log("SMOKE OK starter-mp-path", ids);
 
   M._forceCombat("slime");
   M.state.combat.player.ap = 0;
-  const uidBefore = M.state.combat.next && M.state.combat.next.uid;
+  // Force mismatch so focus redraws
+  M.state.combat.enemies[0].intent = { kind: "attack", value: 15, label: "大殴り 15" };
+  M.state.combat.next = { uid: "bad", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" };
   CARD_DEFS.focus.effect(M.api);
   if (M.state.combat.player.ap !== 1) fail("focus AP+1");
-  console.log("SMOKE OK focus-window-tax");
+  // mismatch should redraw next away from forced slash uid possibly
+  console.log("SMOKE OK focus-read-window");
+
+  // Matching next should reward block, not force redraw
+  M._forceCombat("slime");
+  M.state.combat.player.ap = 0;
+  M.state.combat.player.block = 0;
+  M.state.combat.enemies[0].intent = { kind: "attack", value: 15, label: "大殴り 15" };
+  M.state.combat.next = { uid: "g1", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" };
+  const nextKeep = M.state.combat.next.uid;
+  CARD_DEFS.focus.effect(M.api);
+  if (M.state.combat.next.uid !== nextKeep) fail("focus should keep matching next", M.state.combat.next);
+  if (M.state.combat.player.block < 2) fail("focus match should grant block", M.state.combat.player.block);
+  console.log("SMOKE OK focus-keep-on-match", M.state.combat.player.block);
 
   if (ENEMIES.slime.hp < 30) fail("slime tougher", ENEMIES.slime.hp);
   if (!ENEMIES.slime.pattern.some((s) => s.kind === "attack" && s.value >= 12))
@@ -301,5 +317,154 @@ console.log("SMOKE OK starter-mp-path", ids);
   if (M.state.flags.meditate != null) fail("meditate should consume");
   console.log("SMOKE OK rest-meditate-mp2");
 }
+
+// R9 next-manipulation suite
+{
+  for (const id of ["scry_deep", "swap_pick", "bury_next"]) {
+    if (!CARD_DEFS[id]) fail("missing window card " + id);
+  }
+  if (CARD_DEFS.scry_deep.mp !== 2 || CARD_DEFS.scry_deep.ap !== 0) fail("scry_deep cost");
+  if (CARD_DEFS.swap_pick.ap !== 1 || CARD_DEFS.swap_pick.mp !== 1) fail("swap_pick cost");
+  if (CARD_DEFS.bury_next.ap !== 1 || CARD_DEFS.bury_next.mp !== 1) fail("bury_next cost");
+  M._forceCombat("slime");
+  const c = M.state.combat;
+  c.player.mp = 3;
+  c.player.ap = 3;
+  // Ensure pile has something to become new next
+  if (c.pile.length < 2) {
+    c.pile.push({ uid: "extra1", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" });
+    c.pile.push({ uid: "extra2", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" });
+  }
+  const buried = c.next;
+  const beforeUid = buried && buried.uid;
+  M.api.buryNext();
+  if (!c.next) fail("bury should set new next");
+  if (beforeUid && c.next.uid === beforeUid) fail("bury should change next");
+  if (!c.pile.length || c.pile[0].uid !== beforeUid) fail("bury should put next at pile bottom", c.pile[0] && c.pile[0].uid);
+  console.log("SMOKE OK r9-window-suite", { scry: !!CARD_DEFS.scry_deep, bury: true });
+}
+
+
+// R10 elite modifiers
+{
+  const pool = vm.runInContext("ELITE_POOL", context);
+  if (!pool || pool.length < 3) fail("ELITE_POOL too small", pool);
+  for (const id of pool) {
+    if (!ENEMIES[id]) fail("elite missing " + id);
+  }
+  M._forceCombat("elite_drain");
+  if (M.state.combat.eliteMod !== "drain") fail("elite_drain should set drain mod", M.state.combat.eliteMod);
+  M.state.combat.player.mp = 2;
+  M.state.combat.player.hp = 70;
+  M.state.combat.player.block = 0;
+  M.state.combat.enemies[0].intent = { kind: "attack", value: 10, label: "攻撃 10" };
+  M.state.combat.player.ap = 0;
+  M.endTurn();
+  if (!M.state.combat.over) {
+    if (M.state.combat.player.mp !== 1) fail("drain should steal 1 MP", M.state.combat.player.mp);
+  }
+  M._forceCombat("elite_breaker");
+  if (M.state.combat.eliteMod !== "thick") fail("breaker thick");
+  if (M.state.combat.enemies[0].block < 10) fail("thick should add block", M.state.combat.enemies[0].block);
+  console.log("SMOKE OK r10-elite-mods", { pool, mod: M.state.combat.eliteMod, block: M.state.combat.enemies[0].block });
+}
+
+
+// R11 fight1 pressure
+{
+  const sl = ENEMIES.slime;
+  if (sl.hp < 34) fail("slime HP pressure", sl.hp);
+  if (!sl.pattern.some((s) => s.kind === "block" && s.value >= 10)) fail("slime early shell");
+  if (!sl.pattern.some((s) => s.kind === "attack" && s.value >= 15)) fail("slime big swing");
+  // pattern[0] should be block so opening slash spam is punished
+  if (sl.pattern[0].kind !== "block") fail("slime should open with shell", sl.pattern[0]);
+  console.log("SMOKE OK r11-fight1-pressure", { hp: sl.hp, open: sl.pattern[0], big: sl.pattern.find(s=>s.kind==="attack"&&s.value>=15) });
+}
+
+
+
+// R12 MP payoff without shop RNG
+{
+  const SPEND = vm.runInContext("SPEND_REWARD_POOL", context);
+  if (!SPEND || SPEND.length < 4) fail("SPEND_REWARD_POOL", SPEND);
+  M.startRun();
+  if (M.deckHasMpSpend()) fail("starter should lack MP-spend");
+  // First reward may be generator — take siphon-like manually then still need spend
+  M.state.player.deck.push(vm.runInContext("makeCard", context)("siphon", "x1"));
+  if (M.deckHasMpSpend()) fail("siphon is generator not spend");
+  M.state.flags.firstRewardDone = true;
+  // Kill rat to open reward while still needing spend
+  M._forceCombat("rat");
+  M.state.combat.enemies[0].hp = 0;
+  M.state.combat.hand[0] = { uid: "t2", defId: "slash", name: "斬撃", type: "attack", ap: 0, mp: 0, text: "" };
+  M.state.combat.player.ap = 3;
+  M.playCard(0);
+  const rewarded = M.state.reward || [];
+  const ids = rewarded.map((c) => c.defId);
+  const hasSpendOpt = ids.some((id) => M.MP_SPEND_IDS.includes(id));
+  if (!hasSpendOpt) fail("mid-run reward must offer MP-spend without shop", ids);
+  // Rest gift completes path
+  M.startRun();
+  const giftId = "pierce";
+  M.state.player.deck.push(vm.runInContext("makeCard", context)(giftId, "g1"));
+  if (!M.deckHasMpSpend()) fail("pierce should count as spend");
+  console.log("SMOKE OK r12-mp-payoff-guarantee", { rewardIds: ids, spendPool: SPEND.length });
+}
+
+
+// R13 window-read feel
+{
+  if (CARD_DEFS.redraw_next.name !== "先読み") fail("redraw renamed to 先読み");
+  M._forceCombat("slime");
+  M.state.combat.enemies[0].intent = { kind: "attack", value: 15, label: "大殴り 15" };
+  M.state.combat.player.block = 0;
+  M.state.combat.readMpGranted = true; // isolate block reward from MP amplify
+  const guard = { uid: "g2", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" };
+  M.state.combat.next = guard;
+  M.api.readWindowFeedback(guard, "先読み");
+  if (M.state.combat.player.block < 2) fail("read match should +2 block", M.state.combat.player.block);
+  // redrawNext changes next when pile is non-empty (noRead to avoid RNG reward coupling)
+  M.state.combat.pile = [
+    { uid: "x1", defId: "heavy", name: "強撃", type: "attack", ap: 2, mp: 0, text: "" },
+  ];
+  M.state.combat.next = { uid: "bad2", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" };
+  M.api.redrawNext({ noRead: true });
+  if (!M.state.combat.next || M.state.combat.next.uid === "bad2") fail("redraw should change next", M.state.combat.next);
+  console.log("SMOKE OK r13-window-read", { block: M.state.combat.player.block, next: M.state.combat.next.defId });
+}
+
+// R14 read→MP amplify + diluted pools
+{
+  M._forceCombat("slime");
+  M.state.combat.enemies[0].intent = { kind: "attack", value: 15, label: "⚔ 攻撃 15" };
+  M.state.combat.player.mp = 0;
+  M.state.combat.player.block = 0;
+  M.state.combat.readMpGranted = false;
+  const guard = { uid: "g2", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" };
+  M.state.combat.next = guard;
+  M.api.readWindowFeedback(guard, "先読み");
+  if (M.state.combat.player.mp !== 1) fail("first read should grant MP1", M.state.combat.player.mp);
+  if (M.state.combat.player.block < 2) fail("read block reward", M.state.combat.player.block);
+  M.api.readWindowFeedback(guard, "先読み");
+  if (M.state.combat.player.mp !== 1) fail("second read should not double MP", M.state.combat.player.mp);
+  const REWARD_POOL = vm.runInContext("REWARD_POOL", context);
+  if (REWARD_POOL.includes("poke")) fail("poke should leave reward pool");
+  if (REWARD_POOL.includes("stance_def")) fail("stance_def should not be in rewards");
+  console.log("SMOKE OK r14-read-mp-amplify", { mp: M.state.combat.player.mp, block: M.state.combat.player.block });
+}
+// R15 intent icons
+{
+  M._forceCombat("slime");
+  const lab = M.state.combat.enemies[0].intent && M.state.combat.enemies[0].intent.label;
+  if (!lab || lab.indexOf("🛡") < 0) fail("slime open intent should show shield icon", lab);
+  console.log("SMOKE OK r15-intent-icon", lab);
+}
+
 console.log("SMOKE ALL GREEN");
+
+
+
+
+
+
 

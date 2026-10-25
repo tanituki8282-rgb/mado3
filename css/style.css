@@ -282,3 +282,20 @@ body {
   .card { min-width: 112px; }
   .map-node { min-width: 140px; }
 }
+
+/* R15 juice / readability */
+.actor.player.hurt-flash {
+  animation: hurtPulse 0.35s ease;
+  border-color: var(--danger) !important;
+}
+@keyframes hurtPulse {
+  0% { background: #3a1820; }
+  100% { background: #161722; }
+}
+.juice-lose .end-title { letter-spacing: 0.2em; }
+.juice-win .end-title { text-shadow: 0 0 18px rgba(143,191,143,0.45); }
+.eintent { font-weight: 700; letter-spacing: 0.02em; }
+.enemy-card .eintent { color: #f0a0a0; }
+.map-tip {
+  color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0.6rem;
+}

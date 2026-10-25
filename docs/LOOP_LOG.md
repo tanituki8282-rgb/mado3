@@ -515,3 +515,45 @@ Rounds 33–40 closed Review4 Top3 and gate Top3 on elite pace / in-combat MP ne
 
 ### Review6 handoff（実装者メモ・レビュー待ち）
 Rounds 41–45 closed Review5 Top3 on per-turn elite/boss MP pressure, 膜裂き gift teach, and 気滞 fairness + dead-hand unlock. Smoke green. **Not Done** — Review6 must confirmもう一回／核が遊べる／大きな穴なし before any ship claim.
+
+## Review6（哀ちゃん）— NOT Done. Code vs play mismatch Top3
+1. Normal fights still get 気滞 — 殻虫 +4 on unspent MP turn1 (claimed 通常免除)
+2. Dead-hand escape half-broken — AP+1 works but「次を手札へ」does not fire
+3. 膜裂き gift badge weak/invisible
+
+## Round 46
+- Target gap: Review6#1 — normals still taxed by 気滞
+- What changed:
+  - Root: prior gate used `encounterRank` which could be promoted via `eliteMod`; older R37 also keyed off block-intent/shell (≥10). Reviewer +4 matches that legacy path.
+  - `encounterRank` now elite/boss **by enemyId / ELITE_POOL only** (never via eliteMod)
+  - New `kitaiEligible` flag is the **sole** 気滞 gate; shell/slime/bat/knight/dual forced false
+  - Smoke r46: all five normals endTurn unspent → block==intent only; elite still +5
+- Evaluation: **better**
+  - Evidence: smoke r46-normals-no-kitai
+- Decision: continue → R47
+
+## Round 47
+- Target gap: Review6#2 — escape AP+1 without next entering hand
+- What changed:
+  - Root: R34 escape only `redrawNext()` (hand unchanged) + AP+1; R43 claimed pull-into-hand but smoke never asserted next uid moved, so half-broken path could pass
+  - Escape always pulls visible next (or pile promote) **into hand**, draws new next, then AP/MP soft-unlock
+  - Smoke r47 asserts `NEXT_PULL` uid in hand, hand uids change, new next drawn, hand playable
+- Evaluation: **better**
+  - Evidence: smoke r47-escape-next-to-hand
+- Decision: continue → R48
+
+## Round 48
+- Target gap: Review6#3 — 膜裂き gift badge weak/invisible + smoke/docs
+- What changed:
+  - Root: `.cgift` was 0.7rem corner chip with low contrast; no pulse; easy to miss vs attack top-border
+  - Unmissable ribbon: centered `【贈与】` pill, gold frame+glow, `giftPulse`, name `贈` mark; works on hand and next
+  - CORE/README/LOOP_LOG synced; **not Done** — ready for Review7
+- Evaluation: **better**
+  - Evidence: smoke r48-gift-badge + suite ALL GREEN
+- Still open for Review7:
+  - External play: normals never log 気滞; escape visibly swaps next→hand; gift ribbon unmissable on fight1
+  - Another-run desire (implementer must not Done alone)
+- Decision: pause for Review7 — **not Done**
+
+### Review7 handoff（実装者メモ・レビュー待ち）
+Rounds 46–48 closed Review6 Top3 on kitaiEligible whitelist, escape next→hand, gift badge. Smoke green. **Not Done** — Review7 must confirmもう一回／核が遊べる／大きな穴なし before any ship claim.

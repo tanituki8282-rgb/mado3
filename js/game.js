@@ -94,10 +94,11 @@
   function renderCardEl(card, opts) {
     opts = opts || {};
     const el = document.createElement("div");
-    el.className = "card type-" + card.type + (opts.disabled ? " disabled" : "") + (opts.static ? " static" : "") + (opts.next ? " next" : "") + (card.gift || card.defId === "membrane_tear" ? " gift" : "");
+    const isGift = !!(card.gift || card.defId === "membrane_tear");
+    el.className = "card type-" + card.type + (opts.disabled ? " disabled" : "") + (opts.static ? " static" : "") + (opts.next ? " next" : "") + (isGift ? " gift" : "");
     el.innerHTML =
-      (card.gift || card.defId === "membrane_tear" ? '<div class="cgift">贈与</div>' : "") +
-      '<div class="cname">' + escapeHtml(card.name) + "</div>" +
+      (isGift ? '<div class="cgift" aria-label="贈与">【贈与】</div>' : "") +
+      '<div class="cname">' + (isGift ? '<span class="gift-mark">贈</span> ' : "") + escapeHtml(card.name) + "</div>" +
       '<div class="ccost">' + costLabel(card).replace("MP", '<span class="mp">MP</span>') + "</div>" +
       '<div class="ctext">' + escapeHtml(card.text) + "</div>" +
       (opts.price != null ? '<div class="price">' + opts.price + " 金</div>" : "");
@@ -235,11 +236,13 @@
         applyEliteMod(m);
       }
     }
-    // Rank for UI (紬): boss > elite (mod / pool / node) > normal
+    // Rank for UI (紬): boss > elite pool / base elite id ONLY — never promote normals via eliteMod
+    // R46: kitaiEligible is the sole gate for 気滞 (shell/slime/bat/knight/dual must stay false)
     if (enemyId === "boss") state.combat.encounterRank = "boss";
-    else if (state.combat.eliteMod || enemyId === "elite" || (typeof ELITE_POOL !== "undefined" && ELITE_POOL.indexOf(enemyId) >= 0))
+    else if (enemyId === "elite" || (typeof ELITE_POOL !== "undefined" && ELITE_POOL.indexOf(enemyId) >= 0))
       state.combat.encounterRank = "elite";
     else state.combat.encounterRank = "normal";
+    state.combat.kitaiEligible = (state.combat.encounterRank === "elite" || state.combat.encounterRank === "boss");
     show("combat");
     try {
       const hdr = document.querySelector && document.querySelector("#screen-combat .combat-header");
@@ -548,26 +551,34 @@
     return c.hand.every((card) => !canPlay(card));
   }
 
-  /** R34/R43: once / combat free escape when all cards gray — must unlock a play */
+  /** R34/R43/R47: once / combat free escape — next MUST enter hand (not mere redraw) */
   function deadHandEscape() {
     const c = state.combat;
     if (!c || c.over || c.escapeUsed || !isDeadHand()) return;
     c.escapeUsed = true;
-    // 1) Pull visible next into hand (replace first unplayable) so the window actually changes
-    if (c.next) {
+    const beforeUids = (c.hand || []).map((card) => card && card.uid);
+    let pulledUid = null;
+    // 1) Pull visible next into hand (replace first unplayable). If no next, promote from pile.
+    let incoming = c.next;
+    if (!incoming && c.pile && c.pile.length) {
+      shuffle(c.pile);
+      incoming = c.pile.pop();
+    }
+    if (incoming) {
+      pulledUid = incoming.uid;
       const replaceIdx = c.hand.findIndex((card) => !canPlay(card));
       const idx = replaceIdx >= 0 ? replaceIdx : 0;
       const displaced = c.hand[idx];
-      c.hand[idx] = c.next;
+      c.hand[idx] = incoming;
       c.next = null;
       if (displaced) c.pile.push(displaced);
-      logCombat("詰み脱出：次を手札へ入れた（戦闘1回限り）", true);
+      logCombat("詰み脱出：次『" + (incoming.name || "?") + "』を手札へ入れた（戦闘1回限り）", true);
       if (c.pile && c.pile.length) {
         shuffle(c.pile);
         c.next = c.pile.pop();
       }
     } else {
-      logCombat("詰み脱出：次がない — 余力で解く", true);
+      logCombat("詰み脱出：次も山もない — 余力で解く", true);
     }
     // 2) Soft-unlock AP enough to play the cheapest AP card in hand
     if (isDeadHand()) {
@@ -582,6 +593,8 @@
       c.player.mp += 1;
       logCombat("詰み脱出：余力 MP +1", true);
     }
+    c._escapePulledUid = pulledUid;
+    c._escapeBeforeUids = beforeUids;
     renderCombat();
   }
 
@@ -734,15 +747,15 @@
     logCombat("—— ターン終了 ——");
 
     c.turnIndex = (c.turnIndex || 0) + 1;
-    // R41/R43: 気滞 is elite/boss only (normals must not tax unspent MP)
-    const needsMpPressure = (c.encounterRank === "elite" || c.encounterRank === "boss");
+    // R46: 気滞 ONLY via kitaiEligible (elite/boss ids). Never block-intent / shell / eliteMod heuristics.
+    const needsMpPressure = !!c.kitaiEligible;
 
     livingEnemies().forEach(resolveEnemyAct);
 
     // Player block clears after all enemy acts
     c.player.block = 0;
 
-    // R41: per-turn store→spend — 気滞 if no MP spend / MP→AP convert this turn
+    // R41/R46: per-turn store→spend — 気滞 if no MP spend / MP→AP convert this turn
     if (needsMpPressure && !c.mpSpentThisTurn && c.turnIndex >= 1 && !c.over) {
       const add = c.turnIndex >= 3 ? 6 : 5;
       livingEnemies().forEach((e) => { if (e.hp > 0) e.block += add; });
@@ -862,7 +875,7 @@
       if (c.readMpGranted) parts.push('<span class="wbuff mp flashable">余韻 MP済</span>');
       else parts.push('<span class="wbuff mp-pending">余韻まだ</span>');
       if (c.readBlockBonus > 0) parts.push('<span class="wbuff blk flashable">読了ブロック +' + c.readBlockBonus + "</span>");
-      const eliteBoss = c.encounterRank === "elite" || c.encounterRank === "boss";
+      const eliteBoss = !!c.kitaiEligible;
       if (c.mpSpentThisTurn) parts.push('<span class="wbuff spent">今ターン気を割った</span>');
       else if (eliteBoss) parts.push('<span class="wbuff kitai-risk">気滞リスク（MP未割）</span>');
       else if (c.mpSpent) parts.push('<span class="wbuff spent">MP消費済</span>');

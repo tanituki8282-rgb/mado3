@@ -966,5 +966,101 @@ console.log("SMOKE OK starter-mp-path", ids);
   console.log("SMOKE OK r44-tear-exhaust");
 }
 
+
+// R46: normals (shell/slime/bat/knight/dual) MUST NOT 気滞; only elite/boss kitaiEligible
+{
+  const normals = ["shellbug", "slime", "bat", "knight", "dual_rats"];
+  for (const id of normals) {
+    M.startRun();
+    M._forceCombat(id);
+    if (M.state.combat.kitaiEligible) fail("kitaiEligible must be false for " + id, M.state.combat.encounterRank);
+    if (M.state.combat.encounterRank !== "normal") fail("rank normal expected for " + id, M.state.combat.encounterRank);
+    M.state.combat.mpSpentThisTurn = false;
+    M.state.combat.turnIndex = 0; // endTurn bumps to 1 — old bug fired from turn1
+    const en = M.state.combat.enemies[0];
+    en.block = 0;
+    en.pattern = [{ kind: "block", value: 8, label: "殻" }];
+    en.intent = { kind: "block", value: 8, label: "殻" };
+    en.turn = 0;
+    M.endTurn();
+    // after act: block cleared then +8 from intent — no kitai +5/+6
+    if (en.block !== 8) fail("R46 normal " + id + " must not get 気滞", { block: en.block, rank: M.state.combat.encounterRank, kitai: M.state.combat.kitaiEligible });
+  }
+  // elite still gets kitai
+  M._forceCombat("elite");
+  if (!M.state.combat.kitaiEligible) fail("elite must be kitaiEligible");
+  M.state.combat.mpSpentThisTurn = false;
+  M.state.combat.turnIndex = 0;
+  M.state.combat.enemies[0].block = 0;
+  M.state.combat.enemies[0].pattern = [{ kind: "block", value: 1, label: "殻" }];
+  M.state.combat.enemies[0].intent = { kind: "block", value: 1, label: "殻" };
+  M.state.combat.enemies[0].turn = 0;
+  M.endTurn();
+  if (M.state.combat.enemies[0].block < 6) fail("elite should get kitai +5 on turn1 unspent", M.state.combat.enemies[0].block);
+  // boss too
+  M._forceCombat("boss");
+  if (!M.state.combat.kitaiEligible || M.state.combat.encounterRank !== "boss") fail("boss kitai", M.state.combat);
+  console.log("SMOKE OK r46-normals-no-kitai", { normals: normals.length, eliteKitai: true });
+}
+
+// R47: dead-hand escape — next uid must enter hand; new next drawn
+{
+  M.startRun();
+  M._forceCombat("slime");
+  M.state.combat.player.ap = 0;
+  M.state.combat.player.mp = 0;
+  M.state.combat.hand = [
+    { uid: "a", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" },
+    { uid: "b", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" },
+    { uid: "c", defId: "heavy", name: "強撃", type: "attack", ap: 2, mp: 0, text: "" },
+  ];
+  const nextCard = { uid: "NEXT_PULL", defId: "store", name: "蓄気", type: "tech", ap: 1, mp: 0, text: "" };
+  M.state.combat.next = nextCard;
+  M.state.combat.pile = [
+    { uid: "p_new", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" },
+    { uid: "p2", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" },
+  ];
+  M.state.combat.escapeUsed = false;
+  const before = M.state.combat.hand.map((c) => c.uid).join(",");
+  if (!M.isDeadHand()) fail("r47 should be dead hand");
+  M.deadHandEscape();
+  if (!M.state.combat.escapeUsed) fail("r47 escape lock");
+  const handUids = M.state.combat.hand.map((c) => c.uid);
+  if (!handUids.includes("NEXT_PULL")) fail("r47 next must move into hand", { handUids, before });
+  if (handUids.join(",") === before) fail("r47 hand uids must change", before);
+  if (!M.state.combat.next) fail("r47 new next must be drawn");
+  if (M.state.combat.next.uid === "NEXT_PULL") fail("r47 new next must not be the pulled card");
+  if (M.isDeadHand()) fail("r47 must unlock playable hand", {
+    ap: M.state.combat.player.ap,
+    hand: M.state.combat.hand.map((c) => c.defId),
+  });
+  console.log("SMOKE OK r47-escape-next-to-hand", {
+    pulled: "NEXT_PULL",
+    newNext: M.state.combat.next.uid,
+    ap: M.state.combat.player.ap,
+  });
+}
+
+// R48: gift badge CSS unmissable + render marks gift
+{
+  M.startRun();
+  M._forceCombat("slime");
+  const all = M.state.combat.hand.concat(M.state.combat.next ? [M.state.combat.next] : []);
+  const tear = all.find((c) => c && c.defId === "membrane_tear");
+  if (!tear) fail("r48 tear missing from window");
+  if (!tear.gift) fail("r48 tear.gift flag");
+  const css = fs.readFileSync(path.join(root, "css", "style.css"), "utf8");
+  for (const tok of ["giftPulse", "【贈与】", ".card.gift", "ffd24a", "gift-mark"]) {
+    // 【贈与】 is in game.js render; CSS uses giftPulse / ffd24a
+    if (tok === "【贈与】") continue;
+    if (!css.includes(tok)) fail("r48 css missing " + tok);
+  }
+  const js = fs.readFileSync(path.join(root, "js", "game.js"), "utf8");
+  if (!js.includes("【贈与】") || !js.includes("gift-mark")) fail("r48 render must emit 【贈与】 + gift-mark");
+  if (!js.includes("kitaiEligible")) fail("r48 kitaiEligible gate missing");
+  console.log("SMOKE OK r48-gift-badge", { gift: true, cssPulse: true });
+}
+
+
 console.log("SMOKE ALL GREEN");
 

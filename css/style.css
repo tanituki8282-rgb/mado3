@@ -514,24 +514,57 @@ body {
 .convert-row .btn.primary { font-weight: 700; }
 
 
-/* R41–43 Review5: gift teach + kitai risk + escape pulse */
+/* R41–43 / R48 Review6: gift teach UNMISSABLE + kitai risk + escape pulse */
+.card { position: relative; }
 .card.gift {
-  box-shadow: 0 0 0 2px #c9a24a, 0 0 14px rgba(201, 162, 74, 0.45);
-  border-color: #c9a24a;
+  box-shadow:
+    0 0 0 3px #ffd24a,
+    0 0 22px rgba(255, 210, 74, 0.75),
+    inset 0 0 18px rgba(255, 210, 74, 0.12);
+  border-color: #ffd24a !important;
+  background: linear-gradient(180deg, #3d3214 0%, var(--card) 42%);
+  padding-top: 1.15rem;
+}
+.card.gift.next {
+  box-shadow:
+    0 0 0 3px #ffd24a,
+    0 0 22px rgba(255, 210, 74, 0.75),
+    inset 0 0 14px rgba(106, 154, 120, 0.18);
 }
 .card .cgift {
   position: absolute;
-  top: 0.25rem;
-  right: 0.35rem;
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: #1a1408;
-  background: #e6c56a;
-  padding: 0.05rem 0.35rem;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
+  top: -0.55rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #1a1000;
+  background: #ffd24a;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  border: 2px solid #fff6c8;
+  letter-spacing: 0.1em;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55), 0 0 12px rgba(255, 210, 74, 0.65);
+  animation: giftPulse 1.15s ease-in-out infinite;
+  pointer-events: none;
+  white-space: nowrap;
 }
-.card { position: relative; }
+.card .cname .gift-mark {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #1a1000;
+  background: #ffd24a;
+  border-radius: 4px;
+  padding: 0 0.28rem;
+  margin-right: 0.15rem;
+  vertical-align: middle;
+}
+@keyframes giftPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); filter: brightness(1); }
+  50% { transform: translateX(-50%) scale(1.06); filter: brightness(1.12); }
+}
 .wbuff.kitai-risk {
   background: #2a1c1c;
   color: #f0a090;

@@ -11,8 +11,11 @@
   const REMOVE_COST = 20;
   function removeCostNow() {
     const n = state.player && state.player.deck ? state.player.deck.length : 12;
-    if (n >= 16) return 12;
-    if (n >= 14) return 15;
+    // R35: steeper discount when fat — keep thin motive hard
+    if (n >= 18) return 8;
+    if (n >= 16) return 10;
+    if (n >= 14) return 12;
+    if (n >= 12) return 16;
     return REMOVE_COST;
   }
 
@@ -248,15 +251,29 @@
       logCombat(labels[state.combat.eliteMod] || ("特性：" + state.combat.eliteMod), true);
     }
     logCombat("ヒント: 次を見て、今切るか蓄気（MP）するか。大攻撃の前は防御を窓から引き込め。");
+    if (state.combat.encounterRank === "elite") {
+      logCombat("精鋭：短いが殻が厚い。MP消費（貫通／決壊／往復）しないと気滞で殻が育つ。", true);
+    }
     if (enemyId === "slime") {
       logCombat("初戦: 膜のターンは斬撃が弱い。蓄気／気吸いでMPを貯め、大殴りの前は次を読め。", true);
-      // R25: guaranteed in-combat true MP spend path (combat-only card; never enters player.deck)
+      const need0 = enemyIntentNeeds();
+      logCombat("読み方: 今の意図が求める次＝【" + needLabel(need0) + "】。先読み／集中／窓入替で合うと「読めた」。", true);
+      // R38 gate: 膜裂き is optional hand gift (no pile-fish tax); combat-only
       const tear = makeCard("membrane_tear", "tear" + Date.now());
-      state.combat.pile.push(tear);
-      shuffle(state.combat.pile);
-      // If hand is full of fillers, ensure tear can surface as next if next is empty — else pile only
-      if (!state.combat.next) state.combat.next = state.combat.pile.pop();
-      logCombat("膜に裂け目 — 山に『膜裂き』(AP0/MP1・貫通9)が混ざった。貯めて使え。", true);
+      // Swap a filler slash out of hand if present so tear is immediately visible
+      const slashIdx = state.combat.hand.findIndex((c) => c.defId === "slash");
+      if (slashIdx >= 0) {
+        state.combat.pile.push(state.combat.hand[slashIdx]);
+        state.combat.hand[slashIdx] = tear;
+      } else if (state.combat.hand.length < HAND_SIZE) {
+        state.combat.hand.push(tear);
+      } else {
+        // put as next so player sees it without digging
+        if (state.combat.next) state.combat.pile.push(state.combat.next);
+        state.combat.next = tear;
+      }
+      state.combat.player.mp = Math.max(state.combat.player.mp, 1); // can fire same turn if wanted
+      logCombat("任意：『膜裂き』が手札／次に出た（AP0/MP1貫通）。使わなくてもよい — 膜を裂くチャンス。", true);
     }
     if (enemyId === "boss") {
       logCombat("三窓の主：相【I殻→攻撃】→【II膜→大破24】→【III力→連撃】。殻には貫通／決壊。", true);
@@ -265,19 +282,25 @@
     if (enemies.length > 1) logCombat("複数体：カードは選択中の敵へ。クリックでターゲット変更。");
     // R31: once-per-combat AP↔MP verb amplify
     state.combat.convertUsed = false;
+    state.combat.escapeUsed = false;
+    state.combat.readForceTried = false;
+    state.combat.mpSpent = false;
+    state.combat.turnIndex = 0;
+    state.combat.readFlash = false;
     // R26: meditation softens elite — harden encounter if meditate pending
     const medPending = state.flags && state.flags.meditate;
     if (medPending && (state.combat.encounterRank === "elite" || enemyId === "elite" || (typeof ELITE_POOL !== "undefined" && ELITE_POOL.indexOf(enemyId) >= 0))) {
+      // R37: lighter backfire — still not free, but doesn't erase meditate upside
       if (!state.combat.eliteMod) {
         state.combat.eliteMod = "drain";
         applyEliteMod("drain");
-        logCombat("瞑想の余波に反応：精鋭が気奪いを帯びた", true);
+        logCombat("瞑想の余波：精鋭が薄く気奪いを帯びた（MPを使え）", true);
       } else if (state.combat.eliteMod === "thick") {
-        state.combat.enemies.forEach((e) => { if (e.hp > 0) e.block += 6; });
-        logCombat("瞑想の余波に反応：厚殻がさらに硬くなった（+6）", true);
+        state.combat.enemies.forEach((e) => { if (e.hp > 0) e.block += 4; });
+        logCombat("瞑想の余波：厚殻 +4（貫通／決壊向き）", true);
       } else {
-        state.combat.enemies.forEach((e) => { if (e.hp > 0) { e.hp += 6; e.hpMax += 6; } });
-        logCombat("瞑想の余波に反応：精鋭の体力 +6", true);
+        state.combat.enemies.forEach((e) => { if (e.hp > 0) { e.hp += 3; e.hpMax += 3; } });
+        logCombat("瞑想の余波：精鋭の体力 +3", true);
       }
     }
     if (medPending) {
@@ -334,51 +357,88 @@
   }
 
 
+  function needLabel(need) {
+    if (need === "block") return "防御札";
+    if (need === "attack") return "攻撃札";
+    return "（中立）";
+  }
+
   function enemyIntentNeeds() {
     const e = state.combat && state.combat.enemy;
     if (!e || !e.intent) return null;
     if (e.intent.kind === "attack") return "block";
     if (e.intent.kind === "block") return "attack";
+    // R33: buff turns used to always be 中立 → 読めた never fired; treat as attack prep
+    if (e.intent.kind === "buff") return "attack";
     if (e.block >= 8) return "attack";
     return null;
   }
 
   function cardFillsNeed(card, need) {
     if (!card || !need) return false;
-    if (need === "block") return card.type === "block" || card.defId === "guard" || card.defId === "iron";
-    if (need === "attack") return card.type === "attack" || card.defId === "pierce" || card.defId === "finisher" || card.defId === "burst";
+    if (need === "block") return card.type === "block" || card.defId === "guard" || card.defId === "iron" || card.defId === "stance_def";
+    if (need === "attack") {
+      return card.type === "attack"
+        || card.defId === "pierce" || card.defId === "finisher" || card.defId === "burst"
+        || card.defId === "siphon" || card.defId === "membrane_tear" || card.defId === "stance_off";
+    }
+    return false;
+  }
+
+  /** Review4#1: until first 読めた in the run, force a matching next once so looking isn't pure punishment */
+  function forceMatchNextIfNeeded(need, source) {
+    const c = state.combat;
+    if (!c || !need || !state.flags) return false;
+    if (state.flags.everReadOk) return false;
+    if (c.readForceTried) return false;
+    c.readForceTried = true;
+    // Prefer a matching card already in pile
+    const idx = c.pile.findIndex((x) => cardFillsNeed(x, need));
+    if (idx >= 0) {
+      if (c.next) c.pile.push(c.next);
+      c.next = c.pile.splice(idx, 1)[0];
+      logCombat(source + "：教示 — 合う次『" + c.next.name + "』を引き当てた（初回の「読めた」保証）", true);
+      return true;
+    }
+    // Soft first-match: invent a temporary sense by granting match on current next if attack/block type exists... 
+    // If pile has nothing matching, soft-grant once on any non-tech by remapping need — skip; consolation only
     return false;
   }
 
   function readWindowFeedback(card, source) {
-    const need = enemyIntentNeeds();
+    let need = enemyIntentNeeds();
     if (!card) { logCombat(source + "：次なし"); return false; }
     if (!need) {
-      logCombat(source + "：次は『" + card.name + "』（意図と中立）");
+      logCombat(source + "：次は『" + card.name + "』（意図と中立・合う条件なし）");
       return false;
     }
-    const ok = cardFillsNeed(card, need);
+    let ok = cardFillsNeed(card, need);
+    if (!ok && forceMatchNextIfNeeded(need, source)) {
+      card = state.combat.next;
+      ok = cardFillsNeed(card, need);
+    }
     if (ok) {
       if (need === "block") {
         state.combat.player.block += 2;
         state.combat.readBlockBonus = (state.combat.readBlockBonus || 0) + 2;
-        logCombat(source + "：読めた！ 次『" + card.name + "』は大攻撃に合う → ブロック+2", true);
+        logCombat(source + "：読めた！ 次『" + card.name + "』＝" + needLabel(need) + " → ブロック+2", true);
       } else {
         state.combat.readAttackBonus = (state.combat.readAttackBonus || 0) + 2;
-        logCombat(source + "：読めた！ 次『" + card.name + "』は殻向き → 次の攻撃+2", true);
+        logCombat(source + "：読めた！ 次『" + card.name + "』＝" + needLabel(need) + " → 次の攻撃+2", true);
       }
-      // Core amplify (R14): first clean read each combat also stores MP
       if (!state.combat.readMpGranted) {
         state.combat.player.mp += 1;
         state.combat.readMpGranted = true;
         logCombat("窓の余韻：MP +1（この戦闘で最初の「読めた」）", true);
       }
+      if (state.flags) state.flags.everReadOk = true;
+      state.combat.readFlash = true;
       renderCombat();
       return true;
     }
     // Consolation: dig still teaches without feeling like pure AP tax
     state.combat.player.block += 1;
-    logCombat(source + "：次『" + card.name + "』は不一致 — 探りブロック+1", true);
+    logCombat(source + "：次『" + card.name + "』≠" + needLabel(need) + " — 探りブロック+1（合うのは" + needLabel(need) + "）", true);
     return false;
   }
 
@@ -475,6 +535,28 @@
     return p.ap >= card.ap && p.mp >= card.mp && !state.combat.over;
   }
 
+  function isDeadHand() {
+    const c = state.combat;
+    if (!c || c.over || state.pendingSwapSelect) return false;
+    if (!c.hand || !c.hand.length) return false;
+    return c.hand.every((card) => !canPlay(card));
+  }
+
+  /** Review4#2: once / combat free escape when all cards gray */
+  function deadHandEscape() {
+    const c = state.combat;
+    if (!c || c.over || c.escapeUsed || !isDeadHand()) return;
+    c.escapeUsed = true;
+    logCombat("詰み脱出：次を無料で入れ替え（戦闘1回限り）", true);
+    api.redrawNext();
+    // If still dead and AP=0, grant 1 AP so a cheap card can fire — soft unlock
+    if (isDeadHand() && c.player.ap < 1) {
+      c.player.ap += 1;
+      logCombat("詰み脱出：余力 AP +1", true);
+    }
+    renderCombat();
+  }
+
   /**
    * Play card from hand index:
    * 1) pay cost 2) effect 3) card → pile 4) next → hand 5) new next from shuffled pile
@@ -487,6 +569,14 @@
 
     c.player.ap -= card.ap;
     c.player.mp -= card.mp;
+    if (card.mp > 0) {
+      c.mpSpent = true;
+      if (!c.mpSpendBonusGranted) {
+        c.mpSpendBonusGranted = true;
+        c.player.block += 2;
+        logCombat("気を割いた：ブロック +2（戦闘初回のMP消費）", true);
+      }
+    }
     logCombat("『" + card.name + "』を使用", true);
 
     // Remove from hand first
@@ -608,10 +698,21 @@
     if (c.over) return;
     logCombat("—— ターン終了 ——");
 
+    c.turnIndex = (c.turnIndex || 0) + 1;
+    // Snapshot before acts (enemy block clears at start of their act)
+    const needsMpPressure = (c.encounterRank === "elite" || c.encounterRank === "boss")
+      || livingEnemies().some((e) => (e.block >= 10) || (e.intent && e.intent.kind === "block"));
+
     livingEnemies().forEach(resolveEnemyAct);
 
     // Player block clears after all enemy acts
     c.player.block = 0;
+
+    // R37: 気滞 after enemy act so +block persists into your next turn (store→spend necessity)
+    if (needsMpPressure && !c.mpSpent && c.turnIndex >= 2 && !c.over) {
+      livingEnemies().forEach((e) => { if (e.hp > 0) e.block += 4; });
+      logCombat("気滞：MPを使わず殻を残した → 敵ブロック +4（次のあなたのターンまで）。貫通／決壊／往復を。", true);
+    }
 
     if (checkCombatEnd()) {
       renderCombat();
@@ -699,11 +800,35 @@
     }
     if (buffEl) {
       const parts = [];
-      if (c.readAttackBonus > 0) parts.push('<span class="wbuff atk">次攻撃 +' + c.readAttackBonus + "</span>");
-      if (c.readMpGranted) parts.push('<span class="wbuff mp">余韻 MP済</span>');
+      const needNow = enemyIntentNeeds();
+      parts.push('<span class="wbuff need">合う次：' + needLabel(needNow) + "</span>");
+      if (c.readAttackBonus > 0) parts.push('<span class="wbuff atk flashable">次攻撃 +' + c.readAttackBonus + "</span>");
+      if (c.readMpGranted) parts.push('<span class="wbuff mp flashable">余韻 MP済</span>');
       else parts.push('<span class="wbuff mp-pending">余韻まだ</span>');
-      if (c.readBlockBonus > 0) parts.push('<span class="wbuff blk">読了ブロック +' + c.readBlockBonus + "</span>");
-      buffEl.innerHTML = parts.length ? parts.join(" ") : '<span class="wbuff muted">窓：未読</span>';
+      if (c.readBlockBonus > 0) parts.push('<span class="wbuff blk flashable">読了ブロック +' + c.readBlockBonus + "</span>");
+      if (c.mpSpent) parts.push('<span class="wbuff spent">MP消費済</span>');
+      else if ((c.turnIndex || 0) >= 1) parts.push('<span class="wbuff mp-pending">MP未消費</span>');
+      buffEl.className = "window-buffs" + (c.readFlash ? " buff-flash" : "");
+      buffEl.innerHTML = parts.join(" ");
+      if (c.readFlash) {
+        c.readFlash = false;
+      }
+    }
+    // Unmissable toast near next when 読めた just fired
+    let toast = $("read-toast");
+    if (!toast) {
+      const host = document.querySelector && document.querySelector("#screen-combat .window-area");
+      if (host) {
+        toast = document.createElement("div");
+        toast.id = "read-toast";
+        toast.className = "read-toast hidden";
+        host.insertBefore(toast, host.firstChild);
+      }
+    }
+    if (toast && buffEl && buffEl.className.indexOf("buff-flash") >= 0) {
+      toast.textContent = "読めた！";
+      toast.className = "read-toast";
+      try { setTimeout(() => { toast.className = "read-toast hidden"; }, 1600); } catch (e) { /* headless */ }
     }
     // Multi-enemy panel
     const list = $("enemy-list");
@@ -775,8 +900,20 @@
       nextEl.appendChild(empty);
     }
     $("deck-count").textContent = c.pile.length;
-    $("btn-end-turn").disabled = !!c.over;
-    // R31: AP↔MP convert once / combat
+    const endBtn = $("btn-end-turn");
+    endBtn.disabled = !!c.over;
+    const dead = isDeadHand();
+    try {
+      if (endBtn && endBtn.classList) {
+        endBtn.classList.toggle("dead-hand-pulse", dead && !c.over);
+        if (dead && !c.over) endBtn.textContent = "ターン終了（詰み → E）";
+        else endBtn.textContent = "ターン終了 ";
+        // keep hint span if present in HTML — rewrite cleanly
+        endBtn.textContent = dead && !c.over ? "ターン終了（詰み → E）" : "ターン終了 (E)";
+      }
+    } catch (e) { /* headless */ }
+
+    // R31/R34/R37: compact convert + dead-hand escape (declutter dual buttons)
     let conv = $("convert-row");
     if (!conv) {
       const host = document.querySelector && document.querySelector("#screen-combat .combat-actions");
@@ -788,25 +925,51 @@
       }
     }
     if (conv) {
-      if (c.convertUsed || c.over) {
-        conv.innerHTML = '<span class="hint">気の往復：使用済（この戦闘）</span>';
+      conv.innerHTML = "";
+      if (!c.over && dead && !c.escapeUsed) {
+        const esc = document.createElement("button");
+        esc.className = "btn primary";
+        esc.id = "btn-dead-escape";
+        esc.textContent = "詰み脱出：次を無料入替";
+        esc.addEventListener("click", () => deadHandEscape());
+        conv.appendChild(esc);
+        const tip = document.createElement("span");
+        tip.className = "hint";
+        tip.textContent = " 手札が全部灰色のとき — 戦闘1回";
+        conv.appendChild(tip);
+      } else if (c.convertUsed || c.over) {
+        const s = document.createElement("span");
+        s.className = "hint";
+        s.textContent = c.over ? "" : (c.escapeUsed && dead ? "詰み脱出済 — ターン終了へ" : "気の往復：使用済");
+        conv.appendChild(s);
       } else {
-        conv.innerHTML = "";
-        const b1 = document.createElement("button");
-        b1.className = "btn";
-        b1.textContent = "往復 AP→MP";
-        b1.disabled = c.player.ap < 1;
-        b1.addEventListener("click", () => convertApMp("ap2mp"));
-        const b2 = document.createElement("button");
-        b2.className = "btn";
-        b2.textContent = "往復 MP→AP";
-        b2.disabled = c.player.mp < 1;
-        b2.addEventListener("click", () => convertApMp("mp2ap"));
-        conv.appendChild(b1);
-        conv.appendChild(b2);
+        // Single compact control: prefer the useful direction
+        const preferMp = c.player.mp < 1 && c.player.ap >= 1;
+        const preferAp = c.player.ap < 1 && c.player.mp >= 1;
+        const b = document.createElement("button");
+        b.className = "btn";
+        if (preferMp) {
+          b.textContent = "気の往復 AP→MP";
+          b.disabled = c.player.ap < 1;
+          b.addEventListener("click", () => convertApMp("ap2mp"));
+        } else if (preferAp) {
+          b.textContent = "気の往復 MP→AP";
+          b.disabled = c.player.mp < 1;
+          b.addEventListener("click", () => convertApMp("mp2ap"));
+        } else {
+          b.textContent = "気の往復（AP↔MP）";
+          b.title = "クリックで AP→MP（Shiftで MP→AP）";
+          b.disabled = c.player.ap < 1 && c.player.mp < 1;
+          b.addEventListener("click", (ev) => {
+            if (ev.shiftKey) convertApMp("mp2ap");
+            else if (c.player.ap >= 1) convertApMp("ap2mp");
+            else convertApMp("mp2ap");
+          });
+        }
+        conv.appendChild(b);
         const h = document.createElement("span");
         h.className = "hint";
-        h.textContent = " 戦闘1回限り — 割く動詞の練習";
+        h.textContent = " 1回/戦闘";
         conv.appendChild(h);
       }
     }
@@ -850,20 +1013,18 @@
     }
     const picks = ids.map((id, i) => makeCard(id, "rw" + Date.now() + i));
     state.reward = picks;
+    state.rewardMeta = { gold: gold, deckLen: deckLen, fat: fat, veryFat: veryFat, needSpend: needSpend };
     let tip = needSpend ? "　※MPの使い道を1枚は拾え（店不要）" : "";
-    if (veryFat) tip += "　※山が過厚（" + deckLen + "枚）— 1択のみ。スキップ推奨";
-    else if (fat) tip += "　※山が厚い（" + deckLen + "枚）— スキップ／削除で窓を守れ";
+    if (veryFat) tip += "　※山が過厚（" + deckLen + "枚）— 1択のみ。スキップで金+／取得は重荷";
+    else if (fat) tip += "　※山が厚い（" + deckLen + "枚）— スキップで金+／削除で窓を守れ";
+    else if (deckLen <= 11) tip += "　※山が澄んでいる — 取得で祝儀金+（スキップ連打は火力不足に）";
     $("reward-gold").textContent = "金 +" + gold + "（所持 " + state.player.gold + "）" + tip;
     const box = $("reward-cards");
     box.innerHTML = "";
     picks.forEach((card) => {
       const isSpend = MP_SPEND_IDS.includes(card.defId);
       box.appendChild(renderCardEl(card, {
-        onClick: () => {
-          state.player.deck.push(card);
-          state.reward = null;
-          goMap();
-        },
+        onClick: () => takeRewardCard(card),
       }));
       if (isSpend && box.lastChild) {
         const tag = document.createElement("div");
@@ -873,7 +1034,49 @@
         if (box.lastChild.classList) box.lastChild.classList.add("mp-route");
       }
     });
+    // Skip button label reflects thin/fat motive
+    try {
+      const skip = $("btn-skip-reward");
+      if (skip) {
+        if (veryFat || fat) skip.textContent = "スキップ（金+・窓を守る）";
+        else if (deckLen <= 11) skip.textContent = "スキップ（薄いが火力不足に注意）";
+        else skip.textContent = "スキップ（カードを取らない）";
+      }
+    } catch (e) { /* headless */ }
     show("reward");
+  }
+
+  function takeRewardCard(card) {
+    if (!state.flags) state.flags = {};
+    const deckLen = state.player.deck.length;
+    state.player.deck.push(card);
+    state.flags.rewardTakes = (state.flags.rewardTakes || 0) + 1;
+    // R35 thin bonus / fat tax
+    if (deckLen <= 11) {
+      state.player.gold += 3;
+    }
+    if (deckLen >= 16) {
+      state.player.hp = Math.max(1, state.player.hp - 3);
+      state.flags.pendingFatRemoveHint = true;
+    }
+    state.reward = null;
+    state.rewardMeta = null;
+    goMap();
+  }
+
+  function skipReward() {
+    if (!state.flags) state.flags = {};
+    const deckLen = state.player.deck.length;
+    state.flags.rewardSkips = (state.flags.rewardSkips || 0) + 1;
+    // Fat skip pays; thin skip does not (discourage skip-too-much early)
+    if (deckLen >= 16) state.player.gold += 10;
+    else if (deckLen >= 14) state.player.gold += 6;
+    else if (deckLen <= 11 && (state.flags.rewardSkips || 0) >= 2 && !deckHasMpSpend()) {
+      state.flags.thinSkipWarn = true;
+    }
+    state.reward = null;
+    state.rewardMeta = null;
+    goMap();
   }
 
   function pickRandom(pool, n) {
@@ -888,7 +1091,10 @@
     state.visited = [];
     state.available = ["c1"];
     state.mapPos = null;
-    state.flags = { firstRewardDone: false, seenEvents: [], meditate: null, teachTipShown: false };
+    state.flags = {
+      firstRewardDone: false, seenEvents: [], meditate: null, teachTipShown: false,
+      everReadOk: false, rewardSkips: 0, rewardTakes: 0,
+    };
     goMap();
   }
 
@@ -933,9 +1139,27 @@
           const tip = document.createElement("div");
           tip.className = "teach-tip";
           tip.id = "teach-tip";
-          tip.innerHTML = "<strong>初回ヒント</strong> — ①敵意図と『次』を合わせて読む ②山が濁ったら店／休憩で<strong>削除</strong>。窓は薄いほど信じる。";
+          tip.innerHTML = "<strong>初回ヒント</strong> — ①意図が求める次（攻撃/防御）を先読みで合わせる ②山が濁ったら店／休憩で<strong>削除</strong>。窓は薄いほど信じる。";
           box.insertBefore(tip, box.firstChild);
         }
+      } catch (e) { /* headless */ }
+    }
+    if (state.flags && state.flags.pendingFatRemoveHint) {
+      state.flags.pendingFatRemoveHint = false;
+      try {
+        const tip = document.createElement("div");
+        tip.className = "teach-tip warn";
+        tip.textContent = "重荷：過厚取得でHP-3。店／休憩で削除して窓を戻せ。";
+        box.insertBefore(tip, box.firstChild);
+      } catch (e) { /* headless */ }
+    }
+    if (state.flags && state.flags.thinSkipWarn) {
+      state.flags.thinSkipWarn = false;
+      try {
+        const tip = document.createElement("div");
+        tip.className = "teach-tip warn";
+        tip.textContent = "スキップ過多：山は澄んでいるが決め手不足になりやすい。MP路線を1枚は拾え。";
+        box.insertBefore(tip, box.firstChild);
       } catch (e) { /* headless */ }
     }
   }
@@ -1313,7 +1537,7 @@
   function bind() {
     $("btn-start").addEventListener("click", startRun);
     $("btn-end-turn").addEventListener("click", endTurn);
-    $("btn-skip-reward").addEventListener("click", () => { state.reward = null; goMap(); });
+    $("btn-skip-reward").addEventListener("click", () => skipReward());
     $("btn-rest-heal").addEventListener("click", restHeal);
     $("btn-rest-remove").addEventListener("click", restRemoveMode);
     const med = $("btn-rest-meditate");
@@ -1340,7 +1564,7 @@
             ev.preventDefault();
           }
         } else if (state.screen === "reward" && (ev.key === "s" || ev.key === "S" || ev.key === "Escape")) {
-          state.reward = null; goMap(); ev.preventDefault();
+          skipReward(); ev.preventDefault();
         }
       });
     }
@@ -1362,6 +1586,12 @@
     deckHasMpSpend,
     MP_SPEND_IDS,
     convertApMp,
+    deadHandEscape,
+    isDeadHand,
+    skipReward,
+    takeRewardCard,
+    needLabel,
+    enemyIntentNeeds: () => enemyIntentNeeds(),
     api,
     _forceCombat(enemyId) {
       if (!state.player) startRun();

@@ -382,3 +382,86 @@ Charter: LOOP_CHARTER.md — max 60 rounds. This log starts at Round 1.
 - [ ] カードイラストなし維持
 - [ ] smoke ALL GREEN / Pages 更新済み
 - [ ] レビュー側「もう一回やりたい」「大きな穴なし」が連続2ラウンドで重大ギャップなし → そのとき初めて Done 候補
+
+## Review4（哀ちゃん・~78b0850 play／実装は 2e8e50f+）
+- Prior: anti-bloat partial; 読めた pills felt unfired; 決壊/往復 improved. Conditional another-run IF 先読み can reward.
+- Top3 then: (1) teach/guarantee 読めた early (2) dead-hand escape (3) harden thin-deck motive both extremes
+- Gate on 2e8e50f: NOT hole-free. Core 先読み better; 往復 helps; 膜裂き leans tax. Another-run desire exists.
+- Gate Top3: (1) elite grind pace (2) MP store→spend still optional in-combat (3) 膜裂き tax + 読めた pills missable
+
+## Round 33
+- Target gap: Review4#1 — teach 先読み match / guarantee one「読めた」early
+- What changed:
+  - Match rules clarified on card text + always-on「合う次：攻撃札/防御札」pill
+  - Buff intents now need attack (was always 中立 → pills never fired)
+  - siphon/membrane_tear count as attack fills; stance_def as block
+  - Until first run `everReadOk`, first window read force-pulls a matching next from pile once（教示）
+  - Mismatch log names the required type
+- Evaluation: **better** — smoke r33-early-yometa
+- Decision: continue
+
+## Round 34
+- Target gap: Review4#2 — dead-hand when all cards gray
+- What changed:
+  - `isDeadHand` + end-turn pulse label「詰み → E」
+  - Once/combat「詰み脱出：次を無料入替」; if still dead grants AP+1
+  - Convert UI collapsed to one contextual button (declutter)
+- Evaluation: **better** — smoke r34-dead-hand
+- Decision: continue
+
+## Round 35
+- Target gap: Review4#3 — thin-deck motive both skip-too-much and take-too-much
+- What changed:
+  - Fat skip (≥14) gold+6 / veryFat +10; thin skip no gold
+  - Thin take (≤11) gold+3; veryFat take HP-3 + map warn
+  - Steeper remove discounts when fat; skip button copy reflects motive
+- Evaluation: **better** — smoke r35-thin-motive
+- Decision: continue → gate Top3
+
+## Round 36
+- Target gap: Gate#1 — elite too long / grind
+- What changed:
+  - Base elite HP 72→54, pattern 6→4 sharper beats (殻→強撃→再殻→決壊打ち)
+  - Variants shortened (~48–50 HP, ≤4 beats)
+- Evaluation: **better** — smoke r36-elite-pace; fight ends before promise taste dies
+- Decision: continue
+
+## Round 37
+- Target gap: Gate#2 — MP store→spend optional in combat
+- What changed:
+  - 気滞: on elite/boss/shell turns, ending turn 2+ without MP spend → enemy block +4 into your next turn
+  - First MP spend each combat: block +2（気を割いた）
+  - Meditate→elite backfire lightened (+3 HP / +4 thick) so meditation is not a trap
+  - Elite open log pushes MP spend
+- Evaluation: **better** — smoke r37-mp-necessity
+- Decision: continue
+
+## Round 38
+- Target gap: Gate#3 — 膜裂き tax + 読めた pills missable
+- What changed:
+  - 膜裂き: hand/next gift (swap slash), start MP≥1, explicit「任意・使わなくてもよい」— no pile-fish
+  - 読めた: buff-flash animation + 「読めた！」toast near window; need/spent pills
+- Evaluation: **better** — smoke r38-membrane-pills
+- Decision: continue
+
+## Round 39
+- Target gap: Smoke + balance micro regression
+- What changed:
+  - Smoke extended R33–R38; prior suite green; elite/r18/r26 expectations updated for short elite
+- Evaluation: **better** (stability) — smoke ALL GREEN
+- Decision: continue
+
+## Round 40
+- Target gap: Docs; candidate Done rationale — do **not** claim ship alone
+- What changed:
+  - CORE/README/LOOP_LOG/charter synced for R33–40 + Review4/gate Top3
+- Evaluation: **better** (docs)
+- Still open for Review5:
+  - External play on Pages after deploy (cache)
+  - Whether 気滞 feels fair on non-elite shells
+  - Whether short elite is still a skill check with MP path
+  - Another-run confirmation from reviewer (implementer must not Done alone)
+- Decision: pause for Review5 — **not Done**
+
+### Candidate Done rationale（実装者メモ・レビュー待ち）
+Rounds 33–40 closed Review4 Top3 and gate Top3 on elite pace / in-combat MP necessity / 膜裂き+pills. Core window teach now shows match condition, guarantees one early 読めた, and dead-hand/thin-deck edges are handled. Smoke green. **Candidate Done only if Review5** saysもう一回やりたい・大きな穴なし for 2 consecutive looks — implementer does not ship alone.

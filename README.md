@@ -3,7 +3,7 @@
 STS系カードローグライクの **ブラウザ文字プロト**。  
 核: **見える窓は手札3＋次1。AP（今）とMP（蓄え）を割く。**
 
-Improvement loop rounds 1–32 on `main` (R25–32: fight1 MP spend, 紬 visual follow-up, meditate/elite, boss phases, anti-bloat, teach tip, convert, docs). **Not Done** — awaiting Review4. Play: https://tanituki8282-rgb.github.io/mado3/ — smoke: `node scripts/smoke.mjs`.
+Improvement loop rounds 1–40 on `main` (R33–40: Review4 + gate Top3 — 読めた保証、詰み脱出、薄山動機、精鋭短縮、気滞、膜裂き手札化、docs). **Not Done** — candidate Done awaits Review5. Play: https://tanituki8282-rgb.github.io/mado3/ — smoke: `node scripts/smoke.mjs`.
 
 ## Play
 

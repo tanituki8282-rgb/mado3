@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>窓3 — 文字プロト</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>窓3</h1>
+      <p class="tagline">見える窓は手札3＋次1。AP（今）とMP（蓄え）を割く。</p>
+    </header>
+
+    <!-- TITLE -->
+    <section id="screen-title" class="screen">
+      <div class="panel center">
+        <h2>窓3 — ブラウザ文字プロト</h2>
+        <p>手札は常に3。次の1枚が見える。捨て札なし。</p>
+        <p>1アクト：戦闘 → 分岐 → 休憩 → 店 → エリート → ボス</p>
+        <button id="btn-start" class="btn primary">冒険を始める</button>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section id="screen-map" class="screen hidden">
+      <div class="panel">
+        <div class="status-row">
+          <span>HP <strong id="map-hp">70</strong>/<span id="map-hpmax">70</span></span>
+          <span>金 <strong id="map-gold">0</strong></span>
+          <span>デッキ <strong id="map-decksize">12</strong>枚</span>
+        </div>
+        <h2>マップ</h2>
+        <p class="hint">次のノードを選んでください。</p>
+        <div id="map-nodes" class="map-nodes"></div>
+        <div id="map-log" class="log"></div>
+      </div>
+    </section>
+
+    <!-- COMBAT -->
+    <section id="screen-combat" class="screen hidden">
+      <div class="panel">
+        <div class="combat-header">
+          <div class="actor player">
+            <div class="name">あなた</div>
+            <div>HP <strong id="p-hp">70</strong>/<span id="p-hpmax">70</span>
+              盾 <strong id="p-block">0</strong></div>
+            <div>AP <strong id="p-ap">3</strong>　MP <strong id="p-mp">0</strong></div>
+            <div id="p-stance" class="stance"></div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="actor enemy">
+            <div class="name" id="e-name">敵</div>
+            <div>HP <strong id="e-hp">40</strong>/<span id="e-hpmax">40</span>
+              盾 <strong id="e-block">0</strong></div>
+            <div class="intent">意図: <strong id="e-intent">？</strong></div>
+          </div>
+        </div>
+
+        <div class="window-area">
+          <div class="hand-label">手札（最大3・常に補充）</div>
+          <div id="hand" class="hand"></div>
+          <div class="next-row">
+            <span class="next-label">次 ▶</span>
+            <div id="next-card" class="next-slot"></div>
+            <span class="deck-count">山札残り <strong id="deck-count">0</strong></span>
+          </div>
+        </div>
+
+        <div class="combat-actions">
+          <button id="btn-end-turn" class="btn">ターン終了</button>
+        </div>
+        <div id="combat-log" class="log"></div>
+      </div>
+    </section>
+
+    <!-- REWARD -->
+    <section id="screen-reward" class="screen hidden">
+      <div class="panel">
+        <h2>戦闘報酬</h2>
+        <p id="reward-gold"></p>
+        <p class="hint">カードを1枚選ぶか、スキップ。</p>
+        <div id="reward-cards" class="card-row"></div>
+        <button id="btn-skip-reward" class="btn">スキップしてマップへ</button>
+      </div>
+    </section>
+
+    <!-- REST -->
+    <section id="screen-rest" class="screen hidden">
+      <div class="panel center">
+        <h2>休憩所</h2>
+        <p>HPを最大の30%回復するか、デッキから1枚削除できます。</p>
+        <button id="btn-rest-heal" class="btn primary">休む（回復）</button>
+        <button id="btn-rest-remove" class="btn">カード削除</button>
+        <div id="rest-remove-list" class="card-row hidden"></div>
+      </div>
+    </section>
+
+    <!-- SHOP -->
+    <section id="screen-shop" class="screen hidden">
+      <div class="panel">
+        <div class="status-row">
+          <span>金 <strong id="shop-gold">0</strong></span>
+          <span>HP <strong id="shop-hp">70</strong></span>
+        </div>
+        <h2>店</h2>
+        <p class="hint">購入、またはデッキから1枚削除（金が必要）。</p>
+        <h3>売り物</h3>
+        <div id="shop-wares" class="card-row"></div>
+        <h3>削除（25金）</h3>
+        <div id="shop-remove" class="card-row"></div>
+        <button id="btn-leave-shop" class="btn primary">店を出る</button>
+        <div id="shop-log" class="log"></div>
+      </div>
+    </section>
+
+    <!-- EVENT -->
+    <section id="screen-event" class="screen hidden">
+      <div class="panel center">
+        <h2 id="event-title">出来事</h2>
+        <p id="event-body"></p>
+        <div id="event-choices" class="choices"></div>
+      </div>
+    </section>
+
+    <!-- END -->
+    <section id="screen-end" class="screen hidden">
+      <div class="panel center">
+        <h2 id="end-title">結果</h2>
+        <p id="end-body"></p>
+        <button id="btn-restart" class="btn primary">もう一度</button>
+      </div>
+    </section>
+  </div>
+  <script src="js/cards.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

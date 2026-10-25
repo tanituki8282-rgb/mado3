@@ -820,19 +820,19 @@ console.log("SMOKE OK starter-mp-path", ids);
   console.log("SMOKE OK r36-elite-pace", { hp: ENEMIES.elite.hp, beats: ENEMIES.elite.pattern.length });
 }
 
-// R37 MP spend necessity (気滞) + first-spend block bonus
+// R37/R41 MP spend necessity (気滞 per-turn elite) + first-spend block bonus
 {
   M._forceCombat("elite");
   M.state.combat.mpSpent = false;
-  M.state.combat.turnIndex = 1;
+  M.state.combat.mpSpentThisTurn = false;
+  M.state.combat.turnIndex = 0;
   M.state.combat.enemies[0].block = 14;
-  // prevent combat end / lethal — tiny block act then 気滞 +4 persists
   M.state.combat.enemies[0].pattern = [{ kind: "block", value: 1, label: "x" }];
   M.state.combat.enemies[0].intent = { kind: "block", value: 1, label: "x" };
   M.state.combat.enemies[0].turn = 0;
   M.endTurn();
-  // after act: block cleared then +1 from intent, then 気滞 +4 → ≥5
-  if (M.state.combat.enemies[0].block < 5) fail("気滞 should leave +4 shell after act", M.state.combat.enemies[0].block);
+  // after act: block cleared then +1 from intent, then 気滞 +5 → ≥6
+  if (M.state.combat.enemies[0].block < 6) fail("気滞 should leave +5 shell after act", M.state.combat.enemies[0].block);
   // first MP spend grants +2 block
   M._forceCombat("slime");
   M.state.combat.player.mp = 1;
@@ -842,11 +842,12 @@ console.log("SMOKE OK starter-mp-path", ids);
   M.state.combat.hand[0] = vm.runInContext("makeCard", context)("membrane_tear", "mt");
   M.playCard(0);
   if (!M.state.combat.mpSpent) fail("mpSpent flag");
+  if (!M.state.combat.mpSpentThisTurn) fail("mpSpentThisTurn flag");
   if (M.state.combat.player.block < 2) fail("first MP spend block bonus", M.state.combat.player.block);
   console.log("SMOKE OK r37-mp-necessity", { kitai: true, spendBonus: M.state.combat.player.block });
 }
 
-// R38 membrane hand gift (no pile-only tax) + pill css
+// R38/R42 membrane hand gift (no pile-mix) + pill css
 {
   M.startRun();
   M._forceCombat("slime");
@@ -857,9 +858,112 @@ console.log("SMOKE OK starter-mp-path", ids);
       next: M.state.combat.next && M.state.combat.next.defId,
     });
   if (M.state.combat.player.mp < 1) fail("tear gift should allow MP>=1 to fire");
+  // gift: displaced card held aside, not dumped into pile during teach
+  if (M.state.combat.giftHeld && M.state.combat.pile.some((c) => c.uid === M.state.combat.giftHeld.uid))
+    fail("giftHeld must not also be in pile during teach");
+  const tear = windowCards.find((c) => c.defId === "membrane_tear");
+  if (!tear || !tear.gift) fail("tear should be marked gift");
   const css = fs.readFileSync(path.join(root, "css/style.css"), "utf8");
   if (!css.includes("buff-flash") || !css.includes("dead-hand-pulse")) fail("gate css");
-  console.log("SMOKE OK r38-membrane-pills", { mp: M.state.combat.player.mp });
+  if (!css.includes("card.gift") || !css.includes("kitai-risk")) fail("r41-43 css");
+  console.log("SMOKE OK r38-membrane-pills", { mp: M.state.combat.player.mp, gift: true });
+}
+
+// R41: per-turn 気滞 on elite; spending clears that turn; recurs next turn
+{
+  M._forceCombat("elite");
+  M.state.combat.mpSpentThisTurn = false;
+  M.state.combat.turnIndex = 0;
+  M.state.combat.enemies[0].pattern = [{ kind: "block", value: 1, label: "x" }];
+  M.state.combat.enemies[0].intent = { kind: "block", value: 1, label: "x" };
+  M.state.combat.enemies[0].turn = 0;
+  M.state.combat.enemies[0].block = 0;
+  M.endTurn();
+  const b1 = M.state.combat.enemies[0].block;
+  if (b1 < 6) fail("r41 first kitai", b1);
+  // spend MP this turn → no kitai on end
+  M.state.combat.player.mp = 1;
+  M.state.combat.player.ap = 3;
+  M.state.combat.hand[0] = vm.runInContext("makeCard", context)("pierce", "pc");
+  M.playCard(0);
+  if (!M.state.combat.mpSpentThisTurn) fail("spend should mark this turn");
+  M.state.combat.enemies[0].pattern = [{ kind: "block", value: 1, label: "x" }];
+  M.state.combat.enemies[0].intent = { kind: "block", value: 1, label: "x" };
+  M.state.combat.enemies[0].turn = 0;
+  const before = M.state.combat.enemies[0].block;
+  M.endTurn();
+  // after endTurn: enemy act sets block to 1, no kitai add → should be 1 (not before+5)
+  if (M.state.combat.enemies[0].block >= before + 5) fail("kitai should not fire after spend", M.state.combat.enemies[0].block);
+  // next player turn flag reset
+  if (M.state.combat.mpSpentThisTurn) fail("mpSpentThisTurn should reset on new turn");
+  // convert MP→AP also counts
+  M.state.combat.player.mp = 1;
+  M.state.combat.player.ap = 0;
+  M.state.combat.convertUsed = false;
+  M.convertApMp("mp2ap");
+  if (!M.state.combat.mpSpentThisTurn) fail("convert mp2ap should count as spend");
+  if (ENEMIES.elite.pattern[0].value < 16) fail("elite shell thickened", ENEMIES.elite.pattern[0].value);
+  console.log("SMOKE OK r41-mp-per-turn", { b1, convert: true, shell: ENEMIES.elite.pattern[0].value });
+}
+
+// R43: 気滞 fairness (normals) + dead-hand escape actually unlocks
+{
+  M._forceCombat("shellbug");
+  M.state.combat.mpSpentThisTurn = false;
+  M.state.combat.turnIndex = 2;
+  M.state.combat.enemies[0].block = 12;
+  M.state.combat.enemies[0].pattern = [{ kind: "block", value: 8, label: "殻" }];
+  M.state.combat.enemies[0].intent = { kind: "block", value: 8, label: "殻" };
+  M.state.combat.enemies[0].turn = 0;
+  M.endTurn();
+  // normal: after act block=8 only — no +5 kitai
+  if (M.state.combat.enemies[0].block !== 8) fail("normal fight must not get 気滞", M.state.combat.enemies[0].block);
+
+  M._forceCombat("slime");
+  M.state.combat.player.ap = 0;
+  M.state.combat.player.mp = 0;
+  M.state.combat.hand = [
+    { uid: "a", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" },
+    { uid: "b", defId: "guard", name: "防御", type: "block", ap: 1, mp: 0, text: "" },
+    { uid: "c", defId: "heavy", name: "強撃", type: "attack", ap: 2, mp: 0, text: "" },
+  ];
+  M.state.combat.next = { uid: "n", defId: "store", name: "蓄気", type: "tech", ap: 1, mp: 0, text: "" };
+  M.state.combat.pile = [
+    { uid: "p1", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" },
+  ];
+  M.state.combat.escapeUsed = false;
+  if (!M.isDeadHand()) fail("should be dead hand");
+  M.deadHandEscape();
+  if (!M.state.combat.escapeUsed) fail("escape should lock");
+  if (M.isDeadHand()) fail("escape must unlock a playable hand", {
+    ap: M.state.combat.player.ap,
+    mp: M.state.combat.player.mp,
+    hand: M.state.combat.hand.map((c) => c.defId + "@" + c.ap),
+  });
+  const playable = M.state.combat.hand.some((card) => M.state.combat.player.ap >= card.ap && M.state.combat.player.mp >= card.mp);
+  if (!playable) fail("escape should leave a playable card");
+  console.log("SMOKE OK r43-fairness-escape", { normalNoKitai: true, unlocked: true, ap: M.state.combat.player.ap });
+}
+
+// R44: gift tear does not recirculate into pile
+{
+  M.startRun();
+  M._forceCombat("slime");
+  const hi = M.state.combat.hand.findIndex((c) => c.defId === "membrane_tear");
+  if (hi < 0) {
+    // tear may be next — pull to hand
+    if (M.state.combat.next && M.state.combat.next.defId === "membrane_tear") {
+      M.state.combat.hand[0] = M.state.combat.next;
+      M.state.combat.next = { uid: "f", defId: "slash", name: "斬撃", type: "attack", ap: 1, mp: 0, text: "" };
+    } else fail("no tear in window");
+  }
+  const idx = M.state.combat.hand.findIndex((c) => c.defId === "membrane_tear");
+  M.state.combat.player.mp = Math.max(M.state.combat.player.mp, 1);
+  M.state.combat.player.ap = 3;
+  M.playCard(idx);
+  if (M.state.combat.pile.some((c) => c.defId === "membrane_tear")) fail("tear must not recirculate to pile");
+  if (M.state.combat.hand.some((c) => c.defId === "membrane_tear")) fail("tear must leave hand");
+  console.log("SMOKE OK r44-tear-exhaust");
 }
 
 console.log("SMOKE ALL GREEN");

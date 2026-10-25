@@ -144,7 +144,7 @@ const CARD_DEFS = {
   membrane_tear: {
     id: "membrane_tear", name: "膜裂き", type: "attack",
     ap: 0, mp: 1,
-    text: "敵に 9（貫通）。初戦の任意チャンス（山漁りなし・手札に出す）。使わなくても可。恒常山札に残らない。",
+    text: "敵に 9（貫通）。【贈与】初戦だけのプレゼント。山には混ざらない。使わなくてもよい。",
     effect: (g) => g.dealDamageToEnemy(9 + g.attackBonus(), { ignoreBlock: true }),
   },
 };
@@ -239,9 +239,9 @@ const ENEMIES = {
   elite: {
     id: "elite", name: "窓守りの精鋭", hp: 54, emoji: "⚔️",
     pattern: [
-      { kind: "block", value: 14, label: "窓殻 14" },
+      { kind: "block", value: 16, label: "窓殻 16" },
       { kind: "attack", value: 18, label: "強撃 18" },
-      { kind: "block", value: 12, label: "再殻 12" },
+      { kind: "block", value: 15, label: "再殻 15" },
       { kind: "attack", value: 22, label: "決壊打ち 22" },
     ],
     gold: 52,
@@ -261,9 +261,9 @@ const ENEMIES = {
   elite_breaker: {
     id: "elite_breaker", name: "殻砕きの精鋭", hp: 50, emoji: "🪨",
     pattern: [
-      { kind: "block", value: 15, label: "岩殻 15" },
+      { kind: "block", value: 17, label: "岩殻 17" },
       { kind: "attack", value: 14, label: "攻撃 14" },
-      { kind: "block", value: 16, label: "大岩殻 16" },
+      { kind: "block", value: 18, label: "大岩殻 18" },
       { kind: "attack", value: 18, label: "強撃 18" },
     ],
     gold: 52,

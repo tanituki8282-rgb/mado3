@@ -465,3 +465,53 @@ Charter: LOOP_CHARTER.md — max 60 rounds. This log starts at Round 1.
 
 ### Candidate Done rationale（実装者メモ・レビュー待ち）
 Rounds 33–40 closed Review4 Top3 and gate Top3 on elite pace / in-combat MP necessity / 膜裂き+pills. Core window teach now shows match condition, guarantees one early 読めた, and dead-hand/thin-deck edges are handled. Smoke green. **Candidate Done only if Review5** saysもう一回やりたい・大きな穴なし for 2 consecutive looks — implementer does not ship alone.
+
+## Round 41
+- Target gap: Review5#1 — MP store→spend still shallow vs elite/boss after short elite
+- What changed:
+  - `mpSpentThisTurn` (per-turn); 気滞 only on elite/boss; +5 from turn1 (+6 from turn3) if no MP spend
+  - MP→AP 往復 counts as spend this turn
+  - Elite shells thickened (16/15; breaker 17/18) — AP chip alone is slow
+  - UI pill「気滞リスク」on elite/boss when unspent this turn
+- Evaluation: **better** — smoke r41-mp-per-turn
+- Decision: continue
+
+## Round 42
+- Target gap: Review5#2 — 膜裂き teach muddy / pile-mix feel
+- What changed:
+  - Gift overlay: displaced slash held in `giftHeld` (not pile); restore on combat end
+  - Copy「贈与」+ card badge + CSS gold frame; text says プレゼント
+  - Logs never describe pile-fish
+- Evaluation: **better** — smoke r38/r42 giftHeld
+- Decision: continue
+
+## Round 43
+- Target gap: Review5#3 — 気滞 fairness on normals + dead-hand escape never fired
+- What changed:
+  - Confirmed 気滞 elite/boss only (no normal shellbug tax)
+  - Escape pulls next into hand + AP/MP soft-unlock until a card is playable
+  - Announce log + pulse on escape button + key X
+- Evaluation: **better** — smoke r43-fairness-escape
+- Decision: continue
+
+## Round 44
+- Target gap: Micro polish for gift recirculation
+- What changed:
+  - 膜裂き is one-shot（山に戻さない）when played
+- Evaluation: **better** — smoke r44-tear-exhaust; suite green
+- Decision: continue
+
+## Round 45
+- Target gap: Docs + Review6 note — do **not** claim Done
+- What changed:
+  - CORE/README/LOOP_LOG/charter synced for R41–45 + Review5 Top3
+- Evaluation: **better** (docs)
+- Still open for Review6:
+  - External play: does per-turn 気滞 make elite feel like store→spend without early misery?
+  - Is 膜裂き gift unmistakable (badge/log) vs pile-tax?
+  - Does 詰み脱出 fire and unlock in real play (X / button)?
+  - Another-run desire from reviewer (implementer must not Done alone)
+- Decision: pause for Review6 — **not Done**
+
+### Review6 handoff（実装者メモ・レビュー待ち）
+Rounds 41–45 closed Review5 Top3 on per-turn elite/boss MP pressure, 膜裂き gift teach, and 気滞 fairness + dead-hand unlock. Smoke green. **Not Done** — Review6 must confirmもう一回／核が遊べる／大きな穴なし before any ship claim.
